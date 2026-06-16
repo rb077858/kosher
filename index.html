@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KosherGuard — מערכת ניהול</title>
+<script src="vendor/qrcode.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="logo-row">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4z"/><path d="M9 12l2 2 4-4" stroke="#60a5fa"/></svg>
+    <h1>KosherGuard — מערכת ניהול</h1>
+  </div>
+  <p>כלי המנהל לניהול מכשירים. כל החישוב מתבצע בדפדפן בלבד — שום מידע לא נשלח לאף שרת.</p>
+  <nav>
+    <a href="index.html" class="active">ניהול מכשירים</a>
+    <a href="catalog.html">רשימת אפליקציות חסומות</a>
+  </nav>
+</header>
+
+<div class="container">
+
+  <section class="card">
+    <div class="card-head">
+      <div class="icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><rect x="18" y="14" width="3" height="3"/><rect x="14" y="18" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/></svg>
+      </div>
+      <h2>שלב 1 — סוד-מאסטר חדש</h2>
+    </div>
+    <p class="desc">
+      צרו סוד-מאסטר <strong>פעם אחת בלבד</strong>. הוא משמש לרישום כל המכשירים שתנהלו — אין צורך
+      בקוד נפרד לכל מכשיר. שמרו אותו במקום בטוח (מנהל סיסמאות); אובדן שלו פוסל פתיחה של כל מכשיר
+      שנרשם איתו, וחשיפתו חושפת את כל המכשירים.
+    </p>
+    <button class="primary" id="btnGenerate">צרו סוד-מאסטר חדש</button>
+
+    <div class="result-box ok" id="masterResult">
+      <div>
+        <label>קוד טקסט (לשמירה / לסריקה ידנית)</label>
+        <div class="copy-row">
+          <div class="code-display small" id="masterText" style="flex:1"></div>
+          <button class="ghost" id="btnCopyMaster">העתק</button>
+        </div>
+      </div>
+      <div id="qrCanvasWrap"></div>
+      <p class="hint">סרקו את ה-QR מהמכשיר בזמן ההקמה. הקוד מוצג רק כאן — אם תרעננו את העמוד הוא ייעלם, ולא נשמר בשום מקום אוטומטית.</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <div class="icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+      </div>
+      <h2>שלב 2 — פתיחה זמנית של מכשיר</h2>
+    </div>
+    <p class="desc">
+      בקשו מהמשתמש להקריא לכם את <strong>שם המכשיר</strong> ואת <strong>קוד האתגר</strong> בן 6 הספרות
+      המוצגים על המסך שלו, ואת הסוד-המאסטר שלכם, וקבלו קוד תשובה בן 8 ספרות להקראה בחזרה.
+    </p>
+
+    <div class="field">
+      <label><span class="step-num">1</span>סוד-המאסטר שלך</label>
+      <input type="text" id="inMaster" placeholder="ABCD-EFGH-2345-...">
+    </div>
+    <div class="field">
+      <label><span class="step-num">2</span>שם המכשיר (למשל דני-7F3A)</label>
+      <input type="text" id="inLabel" placeholder="דני-7F3A">
+    </div>
+    <div class="field">
+      <label><span class="step-num">3</span>קוד האתגר (6 ספרות)</label>
+      <input type="text" id="inChallenge" placeholder="123456" maxlength="6" inputmode="numeric">
+    </div>
+    <button class="primary" id="btnUnlock">חשבו קוד תשובה</button>
+
+    <div class="result-box warn" id="unlockWarn"></div>
+    <div class="result-box ok" id="unlockResult">
+      <label>קוד תשובה — הקריאו אותו למשתמש</label>
+      <div class="copy-row">
+        <div class="code-display" id="unlockCode" style="flex:1"></div>
+        <button class="ghost" id="btnCopyUnlock">העתק</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+function base32Encode(bytes) {
+  let bits = 0, value = 0, out = "";
+  for (const byte of bytes) {
+    value = (value << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      out += BASE32_ALPHABET[(value >>> (bits - 5)) & 0x1F];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) {
+    out += BASE32_ALPHABET[(value << (5 - bits)) & 0x1F];
+  }
+  return out;
+}
+
+function base32Decode(code) {
+  const cleaned = code.replace(/[-\s]/g, "").toUpperCase();
+  let bits = 0, value = 0;
+  const out = [];
+  for (const ch of cleaned) {
+    const idx = BASE32_ALPHABET.indexOf(ch);
+    if (idx < 0) continue;
+    value = (value << 5) | idx;
+    bits += 5;
+    if (bits >= 8) {
+      out.push((value >>> (bits - 8)) & 0xFF);
+      bits -= 8;
+    }
+  }
+  return new Uint8Array(out);
+}
+
+function toRecoveryCode(bytes) {
+  const raw = base32Encode(bytes);
+  const groups = [];
+  for (let i = 0; i < raw.length; i += 4) groups.push(raw.slice(i, i + 4));
+  return groups.join("-");
+}
+
+async function hmacSha256(keyBytes, msgBytes) {
+  const key = await crypto.subtle.importKey(
+    "raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, msgBytes);
+  return new Uint8Array(sig);
+}
+
+async function deriveDeviceSecret(masterSecret, deviceLabel) {
+  return hmacSha256(masterSecret, new TextEncoder().encode(deviceLabel));
+}
+
+async function computeResponseCode(deviceSecret, challenge) {
+  const digest = await hmacSha256(deviceSecret, new TextEncoder().encode(challenge));
+  const offset = digest[digest.length - 1] & 0x0F;
+  const binary =
+    ((digest[offset] & 0x7F) << 24) |
+    (digest[offset + 1] << 16) |
+    (digest[offset + 2] << 8) |
+    (digest[offset + 3]);
+  const code = (binary % 100000000).toString().padStart(8, "0");
+  return code;
+}
+
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 1600);
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => showToast("הועתק"));
+}
+
+function renderQr(container, text) {
+  container.innerHTML = "";
+  const qr = qrcode(0, "M");
+  qr.addData(text);
+  qr.make();
+  container.innerHTML = qr.createSvgTag({ cellSize: 5, margin: 8 });
+}
+
+document.getElementById("btnGenerate").addEventListener("click", () => {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const recoveryCode = toRecoveryCode(bytes);
+
+  document.getElementById("masterText").textContent = recoveryCode;
+  renderQr(document.getElementById("qrCanvasWrap"), recoveryCode);
+  document.getElementById("masterResult").classList.add("show");
+});
+
+document.getElementById("btnCopyMaster").addEventListener("click", () => {
+  copyText(document.getElementById("masterText").textContent);
+});
+
+document.getElementById("btnUnlock").addEventListener("click", async () => {
+  const masterInput = document.getElementById("inMaster").value.trim();
+  const label = document.getElementById("inLabel").value.trim();
+  const challenge = document.getElementById("inChallenge").value.trim();
+
+  const warnBox = document.getElementById("unlockWarn");
+  const resultBox = document.getElementById("unlockResult");
+  warnBox.classList.remove("show");
+  resultBox.classList.remove("show");
+
+  if (!masterInput || !label || !challenge) {
+    warnBox.textContent = "יש למלא את שלושת השדות.";
+    warnBox.classList.add("show");
+    return;
+  }
+
+  const masterBytes = base32Decode(masterInput);
+  if (masterBytes.length !== 32) {
+    warnBox.textContent = `אזהרה: אורך הסוד אינו תקין (${masterBytes.length} בייטים, צריך 32). ודאו שהקוד הוקלד נכון.`;
+    warnBox.classList.add("show");
+    return;
+  }
+
+  const deviceSecret = await deriveDeviceSecret(masterBytes, label);
+  const response = await computeResponseCode(deviceSecret, challenge);
+
+  document.getElementById("unlockCode").textContent = response;
+  resultBox.classList.add("show");
+});
+
+document.getElementById("btnCopyUnlock").addEventListener("click", () => {
+  copyText(document.getElementById("unlockCode").textContent);
+});
+
+document.getElementById("inChallenge").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") document.getElementById("btnUnlock").click();
+});
+</script>
+
+</body>
+</html>
