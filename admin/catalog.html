@@ -3,36 +3,65 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KosherGuard — רשימת אפליקציות חסומות</title>
-<link rel="stylesheet" href="style.css">
+<title>KosherGuard — קטלוג האפליקציות</title>
+<link rel="stylesheet" href="../style.css">
 </head>
 <body>
 
 <header>
   <div class="logo-row">
     <svg viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4z"/><path d="M9 12l2 2 4-4" stroke="#60a5fa"/></svg>
-    <h1>KosherGuard — רשימת אפליקציות חסומות</h1>
+    <h1>KosherGuard — קטלוג האפליקציות</h1>
   </div>
   <p>קובע אילו אפליקציות נכללות בכל קטגוריה ובכל חבילת סינון (פרופיל) — בלי לגעת בקוד.</p>
   <nav>
     <a href="index.html">ניהול מכשירים</a>
-    <a href="catalog.html" class="active">רשימת אפליקציות חסומות</a>
+    <a href="catalog.html" class="active">קטלוג אפליקציות</a>
   </nav>
 </header>
 
-<div class="toolbar">
-  <button class="primary small" id="btnOpen">פתחו קובץ קטלוג</button>
-  <button class="ghost" id="btnSave" disabled>שמרו</button>
+<div class="toolbar" id="toolbar">
+  <button class="primary small" id="btnOpen">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="vertical-align:-2px;margin-left:4px"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
+    פתחו קובץ קטלוג
+  </button>
+  <button class="ghost" id="btnSave" disabled>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="vertical-align:-2px;margin-left:4px"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+    שמרו
+  </button>
   <button class="ghost" id="btnTogglePreview" disabled>הצג JSON</button>
-  <span class="status" id="status">לא נטען עדיין קובץ. לחצו "פתחו קובץ קטלוג" ובחרו את <code>admin-tool/filter_catalog.json</code>.</span>
+  <span class="status" id="status">לא נטען עדיין קובץ.</span>
+</div>
+
+<div class="container wide" id="emptyState">
+  <section class="card empty-card">
+    <div class="card-head">
+      <div class="icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      </div>
+      <h2>מה יש כאן</h2>
+    </div>
+    <p class="desc">
+      עמוד זה עורך את <code>admin-tool/filter_catalog.json</code> — מקור האמת היחיד לרשימת האפליקציות
+      החסומות. שלושה מושגים: <strong>קטגוריות</strong> (רשימת אפליקציות בנושא משותף, כמו "רשתות
+      חברתיות"), <strong>פרופילים</strong> (חבילות סינון שהמשתמש בוחר בהקמה — כל פרופיל מורכב
+      מכמה קטגוריות), ו<strong>אפליקציות שמותרות תמיד</strong> (לעולם לא נחסמות).
+    </p>
+    <p class="desc">לחצו "פתחו קובץ קטלוג" למעלה ובחרו את <code>admin-tool/filter_catalog.json</code> כדי להתחיל.</p>
+  </section>
 </div>
 
 <div class="container wide" id="editorRoot" style="display:none">
 
   <section class="card">
-    <div class="section-title">
-      <h2>קטגוריות</h2>
-      <span class="count" id="catCount"></span>
+    <div class="card-head">
+      <div class="icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      </div>
+      <div class="section-title" style="flex:1">
+        <h2>קטגוריות</h2>
+        <span class="count" id="catCount"></span>
+      </div>
     </div>
     <p class="desc">כל קטגוריה היא רשימת אפליקציות (לפי package name) בנושא משותף — למשל "רשתות חברתיות". פרופילים (להלן) מרכיבים את עצמם מקטגוריות.</p>
     <div class="cat-grid" id="categoriesGrid"></div>
@@ -47,9 +76,14 @@
   </section>
 
   <section class="card">
-    <div class="section-title">
-      <h2>פרופילים (חבילות סינון)</h2>
-      <span class="count" id="profCount"></span>
+    <div class="card-head">
+      <div class="icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4z"/></svg>
+      </div>
+      <div class="section-title" style="flex:1">
+        <h2>פרופילים (חבילות סינון)</h2>
+        <span class="count" id="profCount"></span>
+      </div>
     </div>
     <p class="desc">פרופיל הוא שם שהמשתמש בוחר בהקמה (בסיסי / מומלץ / מחמיר / מותאם אישית), שמרכיב חסימה מתוך קבוצת קטגוריות. שינוי שם המזהה (id) של <code>custom</code> או <code>recommended</code> ידרוש עדכון גם בקוד האפליקציה — מומלץ לא לשנות אותם.</p>
     <div class="cat-grid" id="profilesGrid"></div>
@@ -64,9 +98,14 @@
   </section>
 
   <section class="card">
-    <div class="section-title">
-      <h2>אפליקציות שמותרות תמיד</h2>
-      <span class="count" id="wlCount"></span>
+    <div class="card-head">
+      <div class="icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4z"/></svg>
+      </div>
+      <div class="section-title" style="flex:1">
+        <h2>אפליקציות שמותרות תמיד</h2>
+        <span class="count" id="wlCount"></span>
+      </div>
     </div>
     <p class="desc">רשימה זו לא נחסמת אף פעם, גם במצב "מחמיר" עם רשימה לבנה — שמורה לאפליקציות מערכת חיוניות (טלפון, הגדרות וכו').</p>
     <div class="chips" id="whitelistChips"></div>
@@ -290,6 +329,7 @@ function validate() {
 
 function loadCatalog(parsed) {
   catalog = parsed;
+  document.getElementById("emptyState").style.display = "none";
   document.getElementById("editorRoot").style.display = "";
   document.getElementById("btnSave").disabled = false;
   document.getElementById("btnTogglePreview").disabled = false;
