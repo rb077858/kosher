@@ -52,10 +52,10 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg>
       קודי תקלה
     </button>
-    <a class="tab" href="catalog.html">
+    <button class="tab" data-tab="catalog" type="button">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
       קטלוג אפליקציות
-    </a>
+    </button>
   </nav>
 
   <!-- ================= Unlock ================= -->
@@ -426,6 +426,80 @@
           <li>תוך 15 דקות מהפתיחה — אחרת המכשיר יינעל שוב.</li>
         </ol>
       </section>
+    </div>
+  </section>
+
+  <!-- ================= App catalog ================= -->
+  <section class="panel" data-panel="catalog">
+    <div class="form-stack">
+      <div class="master-bar">
+        <div class="btn-row" style="flex:0 0 auto">
+          <button class="ghost small" id="ceBtnOpen" type="button">פתחו קובץ קטלוג</button>
+          <button class="ghost small" id="ceBtnBuiltIn" type="button">התחילו מהקטלוג המובנה</button>
+        </div>
+        <span class="hint" id="ceStatus" style="flex:1;margin:0"></span>
+        <div class="btn-row" style="flex:0 0 auto">
+          <button class="primary small" id="ceBtnSave" type="button" disabled>שמרו</button>
+        </div>
+      </div>
+
+      <section class="card empty-card" id="ceEmptyState">
+        <div class="card-head">
+          <div class="icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          </div>
+          <h2>מה יש כאן</h2>
+        </div>
+        <p class="desc">
+          עורכים כאן את <code>admin-tool/filter_catalog.json</code> — הרשימה שממנה האפליקציה יודעת מה לחסום:
+        </p>
+        <ul class="summary">
+          <li><strong>חבילות סינון</strong> — מה שבוחרים בהגדרת המכשיר (בסיסי, מומלץ…). כל חבילה מורכבת מקטגוריות.</li>
+          <li><strong>קטגוריות</strong> — רשימות אפליקציות בנושא משותף, למשל "רשתות חברתיות".</li>
+          <li><strong>מותרות תמיד</strong> — אפליקציות שאף חבילה לא חוסמת.</li>
+        </ul>
+        <p class="desc">פתחו את הקובץ, או התחילו מהקטלוג המובנה ושמרו בסוף קובץ חדש. השינויים נכנסים לאפליקציה בבנייה הבאה.</p>
+      </section>
+
+      <div id="ceEditorRoot" hidden>
+        <nav class="tabs sub-tabs" style="margin-bottom:18px">
+          <button class="tab" data-sub="profiles" type="button">חבילות סינון <span class="badge-count" id="ceProfCount"></span></button>
+          <button class="tab" data-sub="categories" type="button">קטגוריות <span class="badge-count" id="ceCatCount"></span></button>
+          <button class="tab" data-sub="whitelist" type="button">מותרות תמיד <span class="badge-count" id="ceWlCount"></span></button>
+          <button class="tab" data-sub="json" type="button">JSON</button>
+        </nav>
+
+        <section class="sub-panel" data-sub-panel="profiles">
+          <p class="lead-note">
+            מה שהמשתמש רואה בבחירת חבילה. סמנו לכל חבילה אילו קטגוריות היא חוסמת. את המזהים
+            <code>custom</code> ו-<code>recommended</code> לא כדאי לשנות — האפליקציה מסתמכת עליהם.
+          </p>
+          <div class="cat-grid" id="ceProfilesGrid"></div>
+        </section>
+
+        <section class="sub-panel" data-sub-panel="categories">
+          <div class="add-row" style="margin-bottom:14px">
+            <input type="text" id="ceCatSearch" placeholder="חיפוש אפליקציה או קטגוריה…" autocomplete="off" style="direction:rtl;text-align:right;font-family:inherit">
+          </div>
+          <div class="cat-grid" id="ceCategoriesGrid"></div>
+        </section>
+
+        <section class="sub-panel" data-sub-panel="whitelist">
+          <section class="card">
+            <p class="desc">אפליקציות שלא נחסמות אף פעם, גם בחבילה במצב "רשימה לבנה" — טלפון, הגדרות, מקלדת וכו'.</p>
+            <div id="ceWhitelistEditor"></div>
+          </section>
+        </section>
+
+        <section class="sub-panel" data-sub-panel="json">
+          <section class="card">
+            <p class="desc">כך ייראה הקובץ שיישמר.</p>
+            <pre class="json-preview" id="ceJsonPreview"></pre>
+          </section>
+        </section>
+      </div>
+
+      <input type="file" id="ceFileInput" accept="application/json,.json" style="display:none">
     </div>
   </section>
 
@@ -1461,6 +1535,327 @@ $("btnGenerate").addEventListener("click", () => {
 $("btnCopyMaster").addEventListener("click", () => copyText(generatedMaster));
 $("btnDownloadMasterQr").addEventListener("click", () => downloadQr(generatedMaster, "kosherguard-master.png"));
 $("btnPrintMaster").addEventListener("click", () => window.print());
+
+// ---------------------------------------------------------------------------
+// Catalog editor tab (admin-tool/filter_catalog.json) — its own scope, since several of its
+// helpers share names with the settings builder's.
+// ---------------------------------------------------------------------------
+(() => {
+  let editing = null;
+  let fileHandle = null;
+  let dirty = false;
+  let searchTerm = "";
+
+  const PROTECTED_PROFILE_IDS = ["custom", "recommended"];
+
+  function slugify(text) {
+    return text.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  }
+
+  function setStatus(html) { $("ceStatus").innerHTML = html; }
+
+  function markDirty() {
+    dirty = true;
+    $("ceBtnSave").textContent = "שמרו •";
+    refreshPreview();
+  }
+
+  window.addEventListener("beforeunload", (e) => {
+    if (dirty) { e.preventDefault(); e.returnValue = ""; }
+  });
+
+  // ---- sub tabs ----
+  function showSub(name) {
+    document.querySelectorAll("[data-sub]").forEach((t) => t.classList.toggle("active", t.dataset.sub === name));
+    document.querySelectorAll("[data-sub-panel]").forEach((p) => { p.hidden = p.dataset.subPanel !== name; });
+    store.set("kg.catalogTab", name);
+  }
+  document.querySelectorAll("[data-sub]").forEach((t) => t.addEventListener("click", () => showSub(t.dataset.sub)));
+
+  // ---- shared pieces ----
+  function appChip(pkg, onRemove) {
+    const name = appName(pkg);
+    return el("span", { class: "chip", title: pkg },
+      el("span", { class: name ? "chip-name" : "" }, name || pkg),
+      el("button", { type: "button", title: "הסר", onclick: onRemove }, "×"));
+  }
+
+  /** Chips + an add box (names or packages, several at once) for one package list. */
+  function packageListEditor(list, placeholder) {
+    const wrap = el("div", { class: "pkg-editor" });
+    const chips = el("div", { class: "chips" });
+    const input = el("input", { type: "text", list: "appSuggestions", placeholder, autocomplete: "off" });
+    const render = () => {
+      chips.replaceChildren(...(list.length
+        ? list.map((pkg, i) => appChip(pkg, () => { list.splice(i, 1); render(); markDirty(); renderCounts(); }))
+        : [el("p", { class: "empty-note" }, "אין אפליקציות עדיין.")]));
+    };
+    const add = () => {
+      const { good, bad } = resolveApps(input.value, editing);
+      let added = 0;
+      good.forEach((p) => { if (!list.includes(p)) { list.push(p); added++; } });
+      input.value = bad.join(", ");
+      if (bad.length) showToast("לא זוהה: " + bad.join(", "));
+      if (added) { render(); markDirty(); renderCounts(); }
+    };
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); add(); } });
+    input.addEventListener("change", () => { if (PACKAGE_RE.test(input.value.trim())) add(); });
+    wrap.append(chips, el("div", { class: "add-row" }, input, el("button", { class: "ghost", type: "button", onclick: add }, "הוסיפו")));
+    render();
+    return wrap;
+  }
+
+  function textInput(value, placeholder, onInput, extraClass = "") {
+    const input = el("input", { type: "text", placeholder, class: extraClass });
+    input.value = value;
+    input.addEventListener("input", (e) => { onInput(e.target.value); markDirty(); });
+    return input;
+  }
+
+  function switchRow(label, checked, onChange) {
+    const box = el("input", { type: "checkbox" });
+    box.checked = checked;
+    box.addEventListener("change", () => { onChange(box.checked); markDirty(); });
+    return el("div", { class: "switch-row" }, el("span", {}, label), el("label", { class: "switch" }, box, el("span", { class: "slider" })));
+  }
+
+  // ---- profiles ----
+  function renderProfiles() {
+    const grid = $("ceProfilesGrid");
+    grid.replaceChildren(...editing.profiles.map((prof, index) => {
+      const protectedId = PROTECTED_PROFILE_IDS.includes(prof.id);
+      const pills = el("div", { class: "pill-toggles" }, ...editing.categories.map((cat) => {
+        const box = el("input", { type: "checkbox", checked: prof.categoryIds.includes(cat.id) });
+        box.addEventListener("change", () => {
+          prof.categoryIds = prof.categoryIds.filter((id) => id !== cat.id);
+          if (box.checked) prof.categoryIds.push(cat.id);
+          markDirty();
+          renderProfileTotals();
+        });
+        return el("label", { class: "pill-toggle", title: `${cat.packages.length} אפליקציות` }, box, cat.title);
+      }));
+      return el("div", { class: "entity-card" },
+        el("div", { class: "row-between" },
+          textInput(prof.title, "שם החבילה", (v) => { prof.title = v; }, "title-input"),
+          el("button", {
+            class: "danger", type: "button",
+            onclick: () => {
+              if (!confirm(`למחוק את החבילה "${prof.title}"?`)) return;
+              editing.profiles.splice(index, 1);
+              markDirty();
+              renderAll();
+            },
+          }, "מחיקה")),
+        textInput(prof.subtitle || "", "תיאור קצר שיוצג למשתמש", (v) => { prof.subtitle = v; }, "rtl-input"),
+        el("label", { class: "mini-label" }, "חוסמת את הקטגוריות:"),
+        pills,
+        el("p", { class: "empty-note profile-total", "data-index": index }),
+        switchRow("חסימת כל המשחקים", !!prof.blockAllGames, (v) => { prof.blockAllGames = v; }),
+        switchRow("רשימה לבנה — הכל חסום חוץ מ\"מותרות תמיד\"", !!prof.whitelistMode, (v) => { prof.whitelistMode = v; }),
+        el("details", { class: "fold" },
+          el("summary", {}, "מזהה טכני"),
+          textInput(prof.id, "מזהה באנגלית", (v) => { prof.id = slugify(v); }, "id-input"),
+          protectedId ? el("p", { class: "empty-note", style: "color:var(--danger)" }, "האפליקציה מסתמכת על המזהה הזה — לא לשנות.") : ""));
+    }), addEntityCard("חבילה חדשה", "למשל: לתקופת מבחנים", (title) => {
+      const id = uniqueId(slugify(title) || "profile", editing.profiles);
+      editing.profiles.push({ id, title, subtitle: "", categoryIds: [], blockAllGames: false, whitelistMode: false });
+    }));
+    renderProfileTotals();
+  }
+
+  function renderProfileTotals() {
+    document.querySelectorAll(".profile-total").forEach((p) => {
+      const prof = editing.profiles[Number(p.dataset.index)];
+      if (!prof) return;
+      const pkgs = new Set();
+      editing.categories.filter((c) => prof.categoryIds.includes(c.id)).forEach((c) => c.packages.forEach((x) => pkgs.add(x)));
+      p.textContent = prof.whitelistMode ? "חוסמת הכל חוץ מהמותרות תמיד." : `סה"כ ${pkgs.size} אפליקציות חסומות${prof.blockAllGames ? " + כל המשחקים" : ""}.`;
+    });
+  }
+
+  // ---- categories ----
+  function renderCategories() {
+    const term = searchTerm.trim().toLowerCase();
+    const matches = (cat) => !term || cat.title.toLowerCase().includes(term) || cat.id.includes(term) ||
+      cat.packages.some((p) => p.toLowerCase().includes(term) || (appName(p) || "").toLowerCase().includes(term));
+    const cards = editing.categories.map((cat, index) => {
+      if (!matches(cat)) return null;
+      const usedBy = editing.profiles.filter((p) => p.categoryIds.includes(cat.id)).map((p) => p.title);
+      return el("div", { class: "entity-card" },
+        el("div", { class: "row-between" },
+          textInput(cat.title, "שם הקטגוריה", (v) => { cat.title = v; }, "title-input"),
+          el("button", {
+            class: "danger", type: "button",
+            onclick: () => {
+              if (!confirm(`למחוק את הקטגוריה "${cat.title}"? היא תוסר גם מכל החבילות.`)) return;
+              editing.categories.splice(index, 1);
+              editing.profiles.forEach((p) => { p.categoryIds = p.categoryIds.filter((id) => id !== cat.id); });
+              markDirty();
+              renderAll();
+            },
+          }, "מחיקה")),
+        el("p", { class: "empty-note" }, usedBy.length ? `בשימוש ב: ${usedBy.join(", ")}` : "לא בשימוש באף חבילה."),
+        packageListEditor(cat.packages, "שם או package, למשל Instagram"),
+        el("details", { class: "fold" },
+          el("summary", {}, "מזהה טכני"),
+          textInput(cat.id, "מזהה באנגלית", (v) => {
+            const old = cat.id;
+            cat.id = slugify(v);
+            editing.profiles.forEach((p) => { p.categoryIds = p.categoryIds.map((id) => (id === old ? cat.id : id)); });
+          }, "id-input")));
+    }).filter(Boolean);
+    if (!cards.length) cards.push(el("p", { class: "empty-note", style: "color:#cbd5e1" }, "לא נמצאו קטגוריות מתאימות."));
+    $("ceCategoriesGrid").replaceChildren(...cards, addEntityCard("קטגוריה חדשה", "למשל: משחקים", (title) => {
+      const id = uniqueId(slugify(title) || "category", editing.categories);
+      editing.categories.push({ id, title, packages: [] });
+    }));
+  }
+
+  $("ceCatSearch").addEventListener("input", (e) => { searchTerm = e.target.value; renderCategories(); });
+
+  function uniqueId(base, list) {
+    let id = base, n = 2;
+    while (list.some((x) => x.id === id)) id = `${base}_${n++}`;
+    return id;
+  }
+
+  function addEntityCard(title, placeholder, onAdd) {
+    const input = el("input", { type: "text", placeholder, class: "rtl-input" });
+    const add = () => {
+      const value = input.value.trim();
+      if (!value) { input.focus(); return; }
+      onAdd(value);
+      markDirty();
+      renderAll();
+    };
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") add(); });
+    return el("div", { class: "entity-card add-entity-card" },
+      el("strong", { style: "font-size:14px" }, "+ " + title),
+      el("div", { class: "add-row" }, input, el("button", { class: "primary small", type: "button", onclick: add }, "הוספה")));
+  }
+
+  // ---- whitelist / counts / json ----
+  function renderWhitelist() {
+    $("ceWhitelistEditor").replaceChildren(packageListEditor(editing.whitelistDefaults, "שם או package, למשל com.android.dialer"));
+  }
+
+  function renderCounts() {
+    $("ceProfCount").textContent = editing.profiles.length;
+    $("ceCatCount").textContent = editing.categories.length;
+    $("ceWlCount").textContent = editing.whitelistDefaults.length;
+  }
+
+  function refreshPreview() {
+    if (editing) $("ceJsonPreview").textContent = JSON.stringify(editing, null, 2);
+  }
+
+  function renderAll() {
+    if (!editing) return;
+    renderAppSuggestions($("appSuggestions"), editing);
+    renderCounts();
+    renderProfiles();
+    renderCategories();
+    renderWhitelist();
+    refreshPreview();
+  }
+
+  function validate() {
+    const catIds = editing.categories.map((c) => c.id);
+    const profIds = editing.profiles.map((p) => p.id);
+    if (catIds.some((id) => !id)) return "לכל קטגוריה צריך מזהה.";
+    if (new Set(catIds).size !== catIds.length) return "יש שתי קטגוריות עם אותו מזהה.";
+    if (profIds.some((id) => !id)) return "לכל חבילה צריך מזהה.";
+    if (new Set(profIds).size !== profIds.length) return "יש שתי חבילות עם אותו מזהה.";
+    if (editing.categories.some((c) => !c.title.trim())) return "לכל קטגוריה צריך שם.";
+    if (editing.profiles.some((p) => !p.title.trim())) return "לכל חבילה צריך שם.";
+    return null;
+  }
+
+  function loadCatalog(parsed) {
+    if (!Array.isArray(parsed.profiles) || !Array.isArray(parsed.categories)) throw new Error("מבנה קובץ לא צפוי");
+    parsed.whitelistDefaults = parsed.whitelistDefaults || [];
+    editing = parsed;
+    dirty = false;
+    $("ceBtnSave").textContent = "שמרו";
+    $("ceEmptyState").hidden = true;
+    $("ceEditorRoot").hidden = false;
+    $("ceBtnSave").disabled = false;
+    renderAll();
+    showSub(store.get("kg.catalogTab", "profiles"));
+  }
+
+  // ---- open / save ----
+  $("ceBtnOpen").addEventListener("click", async () => {
+    if (dirty && !confirm("יש שינויים שלא נשמרו. לפתוח קובץ אחר?")) return;
+    if (window.showOpenFilePicker) {
+      try {
+        const [handle] = await window.showOpenFilePicker({ types: [{ description: "JSON", accept: { "application/json": [".json"] } }] });
+        const file = await handle.getFile();
+        loadCatalog(JSON.parse(await file.text()));
+        fileHandle = handle;
+        setStatus(`פתוח: <strong>${file.name}</strong> — "שמרו" כותב ישירות לקובץ.`);
+      } catch (err) {
+        if (err.name !== "AbortError") showToast("שגיאה בטעינת הקובץ: " + err.message);
+      }
+    } else {
+      $("ceFileInput").click();
+    }
+  });
+
+  $("ceFileInput").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      loadCatalog(JSON.parse(await file.text()));
+      fileHandle = null;
+      setStatus(`פתוח: <strong>${file.name}</strong> — "שמרו" יוריד קובץ מעודכן להחלפה ידנית.`);
+    } catch (err) {
+      showToast("שגיאה בקריאת הקובץ: " + err.message);
+    }
+  });
+
+  $("ceBtnBuiltIn").addEventListener("click", () => {
+    if (dirty && !confirm("יש שינויים שלא נשמרו. להתחיל מחדש מהקטלוג המובנה?")) return;
+    loadCatalog(JSON.parse(JSON.stringify(DEFAULT_CATALOG)));
+    fileHandle = null;
+    setStatus('עובדים על הקטלוג המובנה — "שמרו" יוריד קובץ <strong>filter_catalog.json</strong>.');
+  });
+
+  $("ceBtnSave").addEventListener("click", async () => {
+    const error = validate();
+    if (error) { showToast(error); return; }
+    const json = JSON.stringify(editing, null, 2) + "\n";
+    // The settings-QR builder (other tab) uses the edited packages/categories right away.
+    store.set("kg.catalog", editing);
+    catalog = JSON.parse(JSON.stringify(editing));
+    renderCatalogStatus();
+    renderSuggestions();
+    renderAllForm();
+    refreshSettings();
+    if (fileHandle) {
+      try {
+        const writable = await fileHandle.createWritable();
+        await writable.write(json);
+        await writable.close();
+        showToast("נשמר");
+      } catch (err) {
+        showToast("שגיאה בשמירה: " + err.message);
+        return;
+      }
+    } else {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+      a.download = "filter_catalog.json";
+      a.click();
+      URL.revokeObjectURL(a.href);
+      showToast("הקובץ הורד — החליפו בו את admin-tool/filter_catalog.json");
+    }
+    dirty = false;
+    $("ceBtnSave").textContent = "שמרו";
+  });
+
+  setStatus("לא נפתח קובץ.");
+})();
 
 // ---------------------------------------------------------------------------
 // Init

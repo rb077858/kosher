@@ -1,4 +1,4 @@
-// Shared by every admin page (admin/index.html, admin/catalog.html): small DOM/storage helpers,
+// Shared helpers for the admin page (admin/index.html): small DOM/storage helpers,
 // the built-in app catalog and the names of well-known apps.
 
 const $ = (id) => document.getElementById(id);
