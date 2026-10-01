@@ -24,11 +24,18 @@ function copyText(text) {
   navigator.clipboard.writeText(text).then(() => showToast("הועתק"), () => showToast("ההעתקה נכשלה"));
 }
 
+/** Medium error correction when it fits, else Low (holds ~25% more). Throws if even that's too long. */
 function makeQr(text) {
-  const qr = qrcode(0, "M");
-  qr.addData(text);
-  qr.make();
-  return qr;
+  for (const level of ["M", "L"]) {
+    try {
+      const qr = qrcode(0, level);
+      qr.addData(text);
+      qr.make();
+      return qr;
+    } catch (err) {
+      if (level === "L") throw err;
+    }
+  }
 }
 
 function renderQr(container, text) {

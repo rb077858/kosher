@@ -40,6 +40,10 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/></svg>
       ברקוד הגדרות
     </button>
+    <button class="tab" data-tab="store" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8V6a3 3 0 016 0v2"/></svg>
+      החנות הכשרה
+    </button>
     <button class="tab" data-tab="master" type="button">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3M16 7l3 3M14 9l2 2"/></svg>
       סוד-מאסטר
@@ -151,6 +155,15 @@
           <div class="switch-row">
             <span>סינון פעיל</span>
             <label class="switch"><input type="checkbox" id="setFilteringEnabled" checked><span class="slider"></span></label>
+          </div>
+          <div class="switch-row">
+            <span>חסימת Google Play — מתקינים רק מהחנות הכשרה</span>
+            <label class="switch"><input type="checkbox" id="setBlockPlayStore"><span class="slider"></span></label>
+          </div>
+          <div class="field">
+            <label for="setStoreText">החנות הכשרה — הדביקו כאן את טקסט החנות (לא חובה)</label>
+            <textarea id="setStoreText" rows="2" placeholder="KGSTORE1:..."></textarea>
+            <p class="hint" id="storeTextHint" style="margin:4px 0 0">את טקסט החנות מקבלים בלשונית "החנות הכשרה".</p>
           </div>
           <div class="sub-block">
             <h3>קטגוריות נוספות לחסימה</h3>
@@ -274,6 +287,91 @@
           <p class="hint no-print" style="margin:0">
             סורקים במכשיר בכפתור הברקוד בראש המסך הראשי (ברקוד קבוע אפשר גם במסך הפתיחה). אותו ברקוד
             מגדיר כמה מכשירים זהים. המכשיר מאמת את השעה לפני כל סריקה. הטופס נשמר אוטומטית בדפדפן (בלי הסוד).
+          </p>
+        </section>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ================= Kosher store ================= -->
+  <section class="panel" data-panel="store">
+    <div class="builder">
+      <div class="form-stack builder-form">
+        <section class="card">
+          <div class="card-head">
+            <div class="icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg>
+            </div>
+            <h2>אפליקציות מ-Google Play</h2>
+          </div>
+          <p class="desc">
+            הדביקו קישור לאפליקציה מ-Google Play (אפשר כמה, אחד בכל שורה). השם, הסמל והתיאור מזוהים
+            אוטומטית במכשיר ומוצגים בחנות.
+          </p>
+          <div class="add-row">
+            <textarea id="storePlayInput" rows="2" placeholder="https://play.google.com/store/apps/details?id=com.waze"></textarea>
+            <button class="primary small" id="btnStoreAddPlay" type="button">הוספה</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <details class="fold" id="apkFold">
+            <summary>אפליקציה מקובץ APK</summary>
+            <p class="desc" style="margin-bottom:10px">
+              לאפליקציות שאינן ב-Google Play. העלו את קובץ ה-APK לאתר אחסון (למשל GitHub Releases או
+              Google Drive עם קישור הורדה ישיר) והדביקו את הקישור. בחירת הקובץ עצמו כאן לא חובה — היא
+              מאפשרת למכשיר לוודא שהקובץ שהורד הוא בדיוק הקובץ שאישרתם.
+            </p>
+            <div class="field"><label for="apkName">שם האפליקציה</label><input type="text" id="apkName" class="rtl-input"></div>
+            <div class="field"><label for="apkDesc">תיאור קצר</label><input type="text" id="apkDesc" class="rtl-input"></div>
+            <div class="field"><label for="apkUrl">קישור הורדה ישיר לקובץ ה-APK</label><input type="text" id="apkUrl" placeholder="https://.../app.apk"></div>
+            <div class="two-col">
+              <div class="field"><label for="apkFile">קובץ ה-APK (לאימות)</label><input type="file" id="apkFile" accept=".apk"></div>
+              <div class="field"><label for="apkLogo">לוגו</label><input type="file" id="apkLogo" accept="image/*"></div>
+            </div>
+            <div class="field"><label for="apkPackage">שם חבילה (לא חובה)</label><input type="text" id="apkPackage" placeholder="com.example.app"></div>
+            <button class="primary small" id="btnStoreAddApk" type="button" style="margin-top:8px">הוספת האפליקציה</button>
+          </details>
+        </section>
+
+        <section class="card">
+          <div class="section-title">
+            <h2>האפליקציות בחנות</h2>
+            <span class="count" id="storeCount"></span>
+          </div>
+          <div class="store-grid" id="storeList"></div>
+        </section>
+      </div>
+
+      <aside class="builder-preview">
+        <section class="card">
+          <div class="card-head">
+            <div class="icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/></svg>
+            </div>
+            <h2>סיום הגדרת חנות</h2>
+          </div>
+          <p class="desc">
+            הברקוד והטקסט מוצפנים במפתח שנגזר מסוד-המאסטר, ולא מכילים את הסוד עצמו — רק מכשירים
+            שלכם יכולים לקרוא אותם.
+          </p>
+          <button class="primary" id="btnBuildStore" type="button">סיום הגדרת חנות</button>
+          <ul class="issues" id="storeIssues"></ul>
+          <div class="qr-box" id="storeQrWrap"></div>
+          <div id="storeResult" hidden>
+            <label>טקסט החנות — להדבקה בברקוד הגדרות</label>
+            <div class="copy-row">
+              <div class="code-display small store-text" id="storeText" style="flex:1"></div>
+            </div>
+            <div class="btn-row no-print" style="margin-top:8px">
+              <button class="primary small" id="btnCopyStore" type="button">העתק טקסט</button>
+              <button class="ghost" id="btnDownloadStoreQr" type="button">הורד תמונה</button>
+              <button class="ghost" id="btnPrintStore" type="button">הדפס</button>
+            </div>
+          </div>
+          <p class="hint no-print" style="margin:0">
+            במכשיר: סורקים בכפתור הברקוד במסך הראשי, או בהגדרות ← "החנות הכשרה". או מדביקים את הטקסט
+            בלשונית "ברקוד הגדרות". אחרי ההפעלה מופיע במכשיר הסמל "החנות הכשרה".
           </p>
         </section>
       </aside>
@@ -604,6 +702,8 @@ function defaultState() {
     dailyLimitEnabled: false,
     dailyLimitMinutes: 60,
     essential: [],
+    blockPlayStore: false,
+    storeText: "",
     qrKind: "permanent", // "permanent" | "temporary" | "revert"
     untilLocal: "", // <input type="datetime-local"> value, the admin's local time
   };
@@ -783,6 +883,7 @@ function bindSimpleFields() {
     node.addEventListener(prop === "checked" ? "change" : "input", () => { state[key] = parse(node[prop]); syncFieldVisibility(); refreshSettings(); });
   };
   bind("setFilteringEnabled", "filteringEnabled", "checked");
+  bind("setBlockPlayStore", "blockPlayStore", "checked");
   bind("setDowntimeEnabled", "downtimeEnabled", "checked");
   bind("setDowntimeStart", "downtimeStart");
   bind("setDowntimeEnd", "downtimeEnd");
@@ -811,6 +912,8 @@ function renderAllForm() {
   editors.whitelist = chipEditor("whitelistEditor", "whitelist", "שם או package, למשל Waze");
   editors.essential = chipEditor("essentialEditor", "essential", "package, למשל com.android.dialer");
   $("setFilteringEnabled").checked = state.filteringEnabled;
+  $("setBlockPlayStore").checked = state.blockPlayStore;
+  $("setStoreText").value = state.storeText;
   $("setDowntimeEnabled").checked = state.downtimeEnabled;
   $("setDowntimeStart").value = state.downtimeStart;
   $("setDowntimeEnd").value = state.downtimeEnd;
@@ -848,6 +951,8 @@ function buildSettings() {
     dailyDeviceLimitMinutes: state.dailyLimitMinutes,
   };
   if (state.essential.length) settings.essentialAppPackages = state.essential;
+  settings.blockPlayStore = state.blockPlayStore;
+  if (state.storeText.trim()) settings.kosherStore = state.storeText.trim();
   return settings;
 }
 
@@ -861,6 +966,7 @@ function validate() {
     else if (until <= Date.now() + 60_000) issues.push("מועד התוקף צריך להיות בעתיד.");
   }
   if (state.qrKind === "revert") return issues;
+  if (storeTextStatus === "bad") issues.push("טקסט החנות לא תקין, או שנוצר עם סוד-מאסטר אחר.");
   if (state.timeLimitMode === "blacklist" && !state.blacklist.length) issues.push("ברשימה שחורה צריך לפחות אפליקציה אחת.");
   if (state.dailyLimitEnabled && !(state.dailyLimitMinutes >= 1 && state.dailyLimitMinutes <= 1440)) issues.push("מספר הדקות היומי צריך להיות בין 1 ל-1440.");
   if (state.downtimeEnabled && state.downtimeStart === state.downtimeEnd) issues.push("שעת ההתחלה והסיום של ההשבתה זהות.");
@@ -911,6 +1017,8 @@ function refreshSettings() {
     if (until) lines.push(`אפשר לסרוק עד ${formatDateTime(until)}`);
   } else {
     lines = summaryLines(settings);
+    if (settings.blockPlayStore) lines.push("Google Play חסומה — התקנה רק מהחנות הכשרה");
+    if (settings.kosherStore && storeTextStatus === "ok") lines.push(`החנות הכשרה: ${storeTextAppCount} אפליקציות`);
     if (state.qrKind === "temporary" && until) lines.unshift(`זמני — עד ${formatDateTime(until)}, ואז חזרה להגדרות הקודמות`);
   }
   $("summary").replaceChildren(...lines.map((l) => el("li", {}, l)));
@@ -925,7 +1033,13 @@ function refreshSettings() {
       ? { kgSettings: 1, masterSecret: masterValue(), until, settings }
       : { kgSettings: 1, masterSecret: masterValue(), settings };
   lastSettingsText = JSON.stringify(bundle);
-  renderQr($("settingsQrWrap"), lastSettingsText);
+  try {
+    renderQr($("settingsQrWrap"), lastSettingsText);
+  } catch {
+    $("settingsQrWrap").replaceChildren();
+    $("settingsActions").hidden = true;
+    $("issues").replaceChildren(el("li", {}, "ההגדרות ארוכות מדי לברקוד אחד — כנראה בגלל החנות. בנו את החנות בלי לוגואים, או סרקו את ברקוד החנות בנפרד."));
+  }
 }
 
 $("btnCopySettings").addEventListener("click", () => copyText(lastSettingsText));
@@ -943,6 +1057,8 @@ $("btnImport").addEventListener("click", () => {
   const minutesToTime = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
   if ("profileId" in s) next.profileId = s.profileId;
   if ("filteringEnabled" in s) next.filteringEnabled = s.filteringEnabled;
+  if ("blockPlayStore" in s) next.blockPlayStore = s.blockPlayStore;
+  if (s.kosherStore) next.storeText = s.kosherStore;
   if (s.customCategoryIds) next.customCategoryIds = s.customCategoryIds;
   if (s.customAppPackages) next.customAppPackages = s.customAppPackages;
   const limited = s.timeLimitedAppPackages || [];
@@ -993,6 +1109,231 @@ $("btnLoadCatalog").addEventListener("click", async () => {
     if (err.name !== "AbortError") showToast("שגיאה בטעינת הקטלוג: " + err.message);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Kosher store — must stay identical to StoreCodec.kt in the Android app:
+// "KGSTORE1:" + base64url( IV(12) ‖ AES-256-GCM( deflate-raw(JSON) ) ),
+// key = HMAC-SHA256(master secret, "kosherguard-store-v1").
+// ---------------------------------------------------------------------------
+const STORE_PREFIX = "KGSTORE1:";
+
+async function storeKeyFor(masterBytes) {
+  const hmacKey = await crypto.subtle.importKey("raw", masterBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const raw = await crypto.subtle.sign("HMAC", hmacKey, new TextEncoder().encode("kosherguard-store-v1"));
+  return crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
+}
+
+async function streamThrough(bytes, transform) {
+  const stream = new Blob([bytes]).stream().pipeThrough(transform);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+function toBase64Url(bytes) {
+  let bin = "";
+  bytes.forEach((b) => { bin += String.fromCharCode(b); });
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function fromBase64Url(text) {
+  const b64 = text.replace(/-/g, "+").replace(/_/g, "/");
+  const bin = atob(b64 + "===".slice((b64.length + 3) % 4));
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+}
+
+async function encryptStore(json, masterBytes) {
+  const key = await storeKeyFor(masterBytes);
+  const compressed = await streamThrough(new TextEncoder().encode(json), new CompressionStream("deflate-raw"));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, compressed));
+  const out = new Uint8Array(iv.length + ct.length);
+  out.set(iv);
+  out.set(ct, iv.length);
+  return STORE_PREFIX + toBase64Url(out);
+}
+
+async function decryptStore(text, masterBytes) {
+  try {
+    const raw = fromBase64Url(text.trim().slice(STORE_PREFIX.length));
+    const key = await storeKeyFor(masterBytes);
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: raw.slice(0, 12) }, key, raw.slice(12));
+    const json = await streamThrough(new Uint8Array(plain), new DecompressionStream("deflate-raw"));
+    return JSON.parse(new TextDecoder().decode(json));
+  } catch {
+    return null;
+  }
+}
+
+// The store text pasted into the settings QR is checked against the master secret in the bar.
+let storeTextStatus = "none"; // "none" | "ok" | "bad"
+let storeTextAppCount = 0;
+
+async function checkStoreText() {
+  const text = state.storeText.trim();
+  const hint = $("storeTextHint");
+  if (!text) {
+    storeTextStatus = "none";
+    hint.textContent = 'את טקסט החנות מקבלים בלשונית "החנות הכשרה".';
+  } else if (!text.startsWith(STORE_PREFIX) || !masterValid()) {
+    storeTextStatus = text.startsWith(STORE_PREFIX) ? "none" : "bad";
+    hint.textContent = text.startsWith(STORE_PREFIX) ? "הזינו את סוד-המאסטר כדי לאמת את טקסט החנות." : "זה לא טקסט חנות.";
+  } else {
+    const store = await decryptStore(text, masterBytes());
+    storeTextStatus = store ? "ok" : "bad";
+    storeTextAppCount = store ? store.apps.length : 0;
+    hint.textContent = store ? `✓ חנות עם ${store.apps.length} אפליקציות.` : "טקסט החנות לא נוצר עם סוד-המאסטר הזה.";
+  }
+  refreshSettings();
+}
+
+$("setStoreText").addEventListener("input", () => { state.storeText = $("setStoreText").value; checkStoreText(); });
+$("master").addEventListener("input", () => checkStoreText());
+
+// ---- store builder tab ----
+const STORE_DRAFT_KEY = "kg.storeDraft";
+let storeApps = store.get(STORE_DRAFT_KEY, []); // [{ p } | { n, d, u, h?, i?, p? }]
+let lastStoreText = "";
+
+function saveStoreDraft() {
+  store.set(STORE_DRAFT_KEY, storeApps);
+  lastStoreText = "";
+  $("storeResult").hidden = true;
+  $("storeQrWrap").replaceChildren();
+}
+
+/** "https://play.google.com/store/apps/details?id=com.waze&hl=he" / "market://..." / "com.waze" → "com.waze". */
+function playPackageFrom(text) {
+  const t = text.trim();
+  const m = t.match(/[?&]id=([A-Za-z][\w.]*)/);
+  if (m) return m[1];
+  return PACKAGE_RE.test(t) ? t : null;
+}
+
+$("btnStoreAddPlay").addEventListener("click", () => {
+  const bad = [];
+  $("storePlayInput").value.split(/[\n\s,]+/).filter(Boolean).forEach((line) => {
+    const pkg = playPackageFrom(line);
+    if (!pkg) { bad.push(line); return; }
+    if (!storeApps.some((a) => a.p === pkg && !a.u)) storeApps.push({ p: pkg });
+  });
+  $("storePlayInput").value = bad.join("\n");
+  if (bad.length) showToast("לא זוהה קישור תקין: " + bad.join(", "));
+  saveStoreDraft();
+  renderStoreList();
+});
+$("storePlayInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("btnStoreAddPlay").click(); }
+});
+
+async function fileSha256Base64(file) {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer()));
+  let bin = "";
+  digest.forEach((b) => { bin += String.fromCharCode(b); });
+  return btoa(bin);
+}
+
+/** A small square JPEG of the chosen logo, embedded in the store code (kept tiny for the QR). */
+function logoDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const size = 64;
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, size, size);
+      const scale = Math.max(size / img.width, size / img.height);
+      const w = img.width * scale, h = img.height * scale;
+      ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+      resolve(canvas.toDataURL("image/jpeg", 0.72));
+      URL.revokeObjectURL(img.src);
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+$("btnStoreAddApk").addEventListener("click", async () => {
+  const name = $("apkName").value.trim();
+  const url = $("apkUrl").value.trim();
+  if (!name || !/^https?:\/\//.test(url)) { showToast("צריך שם וקישור הורדה (http/https)"); return; }
+  const entry = { n: name, u: url };
+  const desc = $("apkDesc").value.trim();
+  if (desc) entry.d = desc;
+  const pkg = $("apkPackage").value.trim();
+  if (pkg) {
+    if (!PACKAGE_RE.test(pkg)) { showToast("שם החבילה לא תקין"); return; }
+    entry.p = pkg;
+  }
+  try {
+    if ($("apkFile").files[0]) entry.h = await fileSha256Base64($("apkFile").files[0]);
+    if ($("apkLogo").files[0]) entry.i = await logoDataUrl($("apkLogo").files[0]);
+  } catch {
+    showToast("לא הצלחנו לקרוא את הקובץ");
+    return;
+  }
+  storeApps.push(entry);
+  ["apkName", "apkDesc", "apkUrl", "apkPackage", "apkFile", "apkLogo"].forEach((id) => { $(id).value = ""; });
+  saveStoreDraft();
+  renderStoreList();
+  showToast("האפליקציה נוספה");
+});
+
+function renderStoreList() {
+  $("storeCount").textContent = storeApps.length ? `${storeApps.length} אפליקציות` : "";
+  if (!storeApps.length) {
+    $("storeList").replaceChildren(el("p", { class: "empty-note" }, "החנות ריקה. הוסיפו אפליקציות מ-Google Play או מקובץ APK."));
+    return;
+  }
+  $("storeList").replaceChildren(...storeApps.map((app, i) => {
+    const name = app.n || appName(app.p) || app.p;
+    const icon = app.i
+      ? el("img", { class: "store-icon", src: app.i, alt: "" })
+      : el("div", { class: "store-icon placeholder" }, (name || "?").slice(0, 1).toUpperCase());
+    const move = (delta) => {
+      const j = i + delta;
+      if (j < 0 || j >= storeApps.length) return;
+      [storeApps[i], storeApps[j]] = [storeApps[j], storeApps[i]];
+      saveStoreDraft();
+      renderStoreList();
+    };
+    return el("div", { class: "store-item" },
+      icon,
+      el("div", { class: "store-meta" },
+        el("strong", {}, name),
+        el("span", { class: "store-source" }, app.u ? "APK" + (app.h ? " · מאומת" : "") : "Google Play"),
+        app.p ? el("code", {}, app.p) : "",
+        app.d ? el("span", { class: "store-desc" }, app.d) : ""),
+      el("div", { class: "store-actions" },
+        el("button", { class: "ghost small", type: "button", title: "למעלה", onclick: () => move(-1) }, "↑"),
+        el("button", { class: "ghost small", type: "button", title: "למטה", onclick: () => move(1) }, "↓"),
+        el("button", {
+          class: "danger", type: "button",
+          onclick: () => { storeApps.splice(i, 1); saveStoreDraft(); renderStoreList(); },
+        }, "הסרה")));
+  }));
+}
+
+$("btnBuildStore").addEventListener("click", async () => {
+  const issues = [];
+  if (!masterValid()) issues.push("הזינו סוד-מאסטר תקין בשורה למעלה.");
+  if (!storeApps.length) issues.push("הוסיפו לפחות אפליקציה אחת.");
+  $("storeIssues").replaceChildren(...issues.map((t) => el("li", {}, t)));
+  if (issues.length) return;
+  const text = await encryptStore(JSON.stringify({ v: 1, apps: storeApps }), masterBytes());
+  lastStoreText = text;
+  $("storeText").textContent = text;
+  $("storeResult").hidden = false;
+  try {
+    renderQr($("storeQrWrap"), text);
+  } catch {
+    $("storeQrWrap").replaceChildren();
+    $("storeIssues").replaceChildren(el("li", {}, `החנות גדולה מדי לברקוד אחד (${text.length} תווים). אפשר עדיין להדביק את הטקסט בברקוד הגדרות, או להסיר לוגואים של אפליקציות APK.`));
+  }
+});
+$("btnCopyStore").addEventListener("click", () => copyText(lastStoreText));
+$("btnDownloadStoreQr").addEventListener("click", () => downloadQr(lastStoreText, "kosherguard-store.png"));
+$("btnPrintStore").addEventListener("click", () => window.print());
 
 // ---------------------------------------------------------------------------
 // Fault codes — must stay identical to FaultCode.kt in the Android app.
@@ -1086,6 +1427,8 @@ renderSuggestions();
 renderCatalogStatus();
 renderRecentDevices();
 renderAllForm();
+renderStoreList();
+checkStoreText();
 refreshMasterBar();
 refreshSettings();
 showTab(location.hash.slice(1) || "unlock");
