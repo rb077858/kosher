@@ -15,167 +15,268 @@
     <h1>KosherGuard — מערכת ניהול</h1>
   </div>
   <p>כלי המנהל לניהול מכשירים. כל החישוב מתבצע בדפדפן בלבד — שום מידע לא נשלח לאף שרת.</p>
-  <nav>
-    <a href="catalog.html">ניהול קטלוג האפליקציות</a>
-  </nav>
 </header>
 
-<div class="container">
+<div class="app-shell">
 
-  <section class="card">
-    <div class="card-head">
-      <div class="icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><rect x="18" y="14" width="3" height="3"/><rect x="14" y="18" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/></svg>
-      </div>
-      <h2>שלב 1 — סוד-מאסטר חדש</h2>
+  <div class="master-bar">
+    <label for="master">סוד-המאסטר שלכם</label>
+    <div class="master-input">
+      <input type="password" id="master" placeholder="ABCD-EFGH-2345-..." autocomplete="off" spellcheck="false">
+      <button class="ghost small" id="btnToggleMaster" type="button">הצג</button>
+      <span class="badge" id="masterBadge"></span>
     </div>
-    <p class="desc">
-      צרו סוד-מאסטר <strong>פעם אחת בלבד</strong>. הוא משמש לרישום כל המכשירים שתנהלו — אין צורך
-      בקוד נפרד לכל מכשיר. שמרו אותו במקום בטוח (מנהל סיסמאות); אובדן שלו פוסל פתיחה של כל מכשיר
-      שנרשם איתו, וחשיפתו חושפת את כל המכשירים.
-    </p>
-    <button class="primary" id="btnGenerate">צרו סוד-מאסטר חדש</button>
+    <label class="inline-check"><input type="checkbox" id="rememberMaster"> זכור במחשב הזה</label>
+    <p class="hint" id="masterHint"></p>
+  </div>
 
-    <div class="result-box ok" id="masterResult">
-      <div>
-        <label>קוד טקסט (לשמירה / לסריקה ידנית)</label>
-        <div class="copy-row">
-          <div class="code-display small" id="masterText" style="flex:1"></div>
-          <button class="ghost" id="btnCopyMaster">העתק</button>
+  <nav class="tabs" role="tablist">
+    <button class="tab" data-tab="unlock" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 019.9-1"/></svg>
+      פתיחת מכשיר
+    </button>
+    <button class="tab" data-tab="settings" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/></svg>
+      ברקוד הגדרות
+    </button>
+    <button class="tab" data-tab="master" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3M16 7l3 3M14 9l2 2"/></svg>
+      סוד-מאסטר
+    </button>
+    <a class="tab" href="catalog.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+      קטלוג אפליקציות
+    </a>
+  </nav>
+
+  <!-- ================= Unlock ================= -->
+  <section class="panel" data-panel="unlock">
+    <div class="panel-grid">
+      <div class="card">
+        <div class="card-head">
+          <div class="icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          </div>
+          <h2>פתיחה זמנית של מכשיר</h2>
+        </div>
+        <p class="desc">
+          בקשו מהמשתמש להקריא את <strong>שם המכשיר</strong> ואת <strong>קוד האתגר</strong> שעל המסך שלו.
+          קוד התשובה מחושב מיד כשהוזנו 6 ספרות.
+        </p>
+        <div class="field">
+          <label for="inLabel"><span class="step-num">1</span>שם המכשיר</label>
+          <input type="text" id="inLabel" list="recentDevicesList" placeholder="דני-7F3A" autocomplete="off" spellcheck="false">
+          <datalist id="recentDevicesList"></datalist>
+        </div>
+        <div class="recent" id="recentDevices"></div>
+        <div class="field">
+          <label for="inChallenge"><span class="step-num">2</span>קוד האתגר (6 ספרות)</label>
+          <input type="text" id="inChallenge" placeholder="123456" maxlength="6" inputmode="numeric" autocomplete="off">
+        </div>
+        <div class="result-box warn" id="unlockWarn"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6A19.8 19.8 0 012.1 4.2 2 2 0 014.1 2h3a2 2 0 012 1.7c.1.9.4 1.8.7 2.7a2 2 0 01-.5 2.1L8 9.8a16 16 0 006 6l1.3-1.3a2 2 0 012.1-.4c.9.3 1.8.6 2.7.7a2 2 0 011.7 2z"/></svg>
+          </div>
+          <h2>קוד תשובה</h2>
+        </div>
+        <p class="desc" id="unlockIdle">הקוד יופיע כאן. הקריאו אותו למשתמש — הוא תקף רק לבקשה הנוכחית.</p>
+        <div class="result-box ok" id="unlockResult">
+          <div class="code-display big-code" id="unlockCode"></div>
+          <div class="btn-row">
+            <button class="primary" id="btnCopyUnlock" type="button">העתק</button>
+            <button class="ghost" id="btnNewRequest" type="button">בקשה חדשה</button>
+          </div>
         </div>
       </div>
-      <div id="qrCanvasWrap"></div>
-      <p class="hint">סרקו את ה-QR מהמכשיר בזמן ההקמה. הקוד מוצג רק כאן — אם תרעננו את העמוד הוא ייעלם, ולא נשמר בשום מקום אוטומטית.</p>
     </div>
   </section>
 
-  <section class="card">
-    <div class="card-head">
-      <div class="icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-      </div>
-      <h2>שלב 2 — פתיחה זמנית של מכשיר</h2>
-    </div>
-    <p class="desc">
-      בקשו מהמשתמש להקריא לכם את <strong>שם המכשיר</strong> ואת <strong>קוד האתגר</strong> בן 6 הספרות
-      המוצגים על המסך שלו, ואת הסוד-המאסטר שלכם, וקבלו קוד תשובה בן 8 ספרות להקראה בחזרה.
-    </p>
+  <!-- ================= Settings QR ================= -->
+  <section class="panel" data-panel="settings">
+    <div class="builder">
+      <div class="form-stack builder-form" id="builderForm">
 
-    <div class="field">
-      <label><span class="step-num">1</span>סוד-המאסטר שלך</label>
-      <input type="text" id="inMaster" placeholder="ABCD-EFGH-2345-...">
-    </div>
-    <div class="field">
-      <label><span class="step-num">2</span>שם המכשיר (למשל דני-7F3A)</label>
-      <input type="text" id="inLabel" placeholder="דני-7F3A">
-    </div>
-    <div class="field">
-      <label><span class="step-num">3</span>קוד האתגר (6 ספרות)</label>
-      <input type="text" id="inChallenge" placeholder="123456" maxlength="6" inputmode="numeric">
-    </div>
-    <button class="primary" id="btnUnlock">חשבו קוד תשובה</button>
+        <section class="card">
+          <div class="card-head">
+            <div class="icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4z"/></svg>
+            </div>
+            <h2>חבילת סינון</h2>
+          </div>
+          <div class="radio-cards" id="profileCards"></div>
+          <div class="switch-row">
+            <span>סינון פעיל</span>
+            <label class="switch"><input type="checkbox" id="setFilteringEnabled" checked><span class="slider"></span></label>
+          </div>
+          <div class="sub-block">
+            <h3>קטגוריות נוספות לחסימה</h3>
+            <p class="empty-note">קטגוריות אפורות כבר כלולות בחבילה שנבחרה.</p>
+            <div class="pill-toggles" id="categoryPills"></div>
+          </div>
+          <div class="sub-block">
+            <h3>אפליקציות נוספות לחסימה</h3>
+            <div id="customAppsEditor"></div>
+          </div>
+        </section>
 
-    <div class="result-box warn" id="unlockWarn"></div>
-    <div class="result-box ok" id="unlockResult">
-      <label>קוד תשובה — הקריאו אותו למשתמש</label>
-      <div class="copy-row">
-        <div class="code-display" id="unlockCode" style="flex:1"></div>
-        <button class="ghost" id="btnCopyUnlock">העתק</button>
+        <section class="card">
+          <div class="card-head">
+            <div class="icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            </div>
+            <h2>הגבלות זמן</h2>
+          </div>
+
+          <div class="segmented" id="modeSwitch">
+            <button type="button" data-mode="whitelist">
+              רשימה לבנה
+              <small>ההגבלות חלות על כל המכשיר, חוץ מהאפליקציות ברשימה. לא חובה למלא.</small>
+            </button>
+            <button type="button" data-mode="blacklist">
+              רשימה שחורה
+              <small>ההגבלות חלות רק על האפליקציות ברשימה. חובה לפחות אחת.</small>
+            </button>
+          </div>
+
+          <div id="whitelistBlock">
+            <label>אפליקציות מותרות תמיד (לא מוגבלות בזמן)</label>
+            <div id="whitelistEditor"></div>
+          </div>
+          <div id="blacklistBlock">
+            <label>אפליקציות מוגבלות — אפשר לתת לכל אחת טיימר יומי משלה</label>
+            <div class="app-rows" id="blacklistRows"></div>
+            <div class="add-row" style="margin-top:6px">
+              <input type="text" id="blacklistInput" list="appSuggestions" placeholder="שם או package, למשל WhatsApp" autocomplete="off">
+              <button class="ghost" id="btnBlacklistAdd" type="button">הוסף</button>
+            </div>
+          </div>
+          <p class="hint" style="margin:0">טלפון, הודעות ומצלמה של המכשיר, מסך הבית והמקלדת אף פעם לא נחסמים בגלל הגבלת זמן.</p>
+
+          <div class="sub-block">
+            <div class="switch-row">
+              <h3>שעות השבתה</h3>
+              <label class="switch"><input type="checkbox" id="setDowntimeEnabled"><span class="slider"></span></label>
+            </div>
+            <div class="two-col" id="downtimeFields">
+              <div class="field"><label for="setDowntimeStart">מ-</label><input type="time" id="setDowntimeStart" value="21:00"></div>
+              <div class="field"><label for="setDowntimeEnd">עד</label><input type="time" id="setDowntimeEnd" value="07:00"></div>
+            </div>
+          </div>
+
+          <div class="sub-block">
+            <div class="switch-row">
+              <h3>זמן מסך יומי משותף</h3>
+              <label class="switch"><input type="checkbox" id="setDailyLimitEnabled"><span class="slider"></span></label>
+            </div>
+            <div id="dailyFields">
+              <div class="field">
+                <label for="setDailyLimitMinutes">דקות ליום</label>
+                <input type="number" id="setDailyLimitMinutes" value="60" min="1" max="1440">
+              </div>
+              <div class="quick-picks" id="dailyQuickPicks">
+                <button type="button" data-min="30">30 דק'</button>
+                <button type="button" data-min="60">שעה</button>
+                <button type="button" data-min="90">שעה וחצי</button>
+                <button type="button" data-min="120">שעתיים</button>
+                <button type="button" data-min="180">3 שעות</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <details class="fold">
+            <summary>מתקדם — אפליקציות פטורות נוספות</summary>
+            <p class="desc" style="margin-bottom:10px">
+              לעולם לא נחסמות בגלל הגבלת זמן, בשני המצבים. הטלפון, ההודעות והמצלמה של המכשיר כבר
+              פטורים אוטומטית — כאן מוסיפים עוד.
+            </p>
+            <div id="essentialEditor"></div>
+          </details>
+          <details class="fold">
+            <summary>קטלוג וטעינה מברקוד קיים</summary>
+            <div class="toolbar" style="margin:0 0 12px;position:static">
+              <button class="ghost small" id="btnLoadCatalog" type="button">טענו קובץ קטלוג</button>
+              <span class="status" id="catalogStatus"></span>
+            </div>
+            <label for="importText">הדביקו טקסט של ברקוד הגדרות קיים כדי לערוך אותו</label>
+            <textarea id="importText" rows="3" placeholder='{"kgSettings":1,...}'></textarea>
+            <div class="btn-row" style="margin-top:8px">
+              <button class="ghost" id="btnImport" type="button">טען לטופס</button>
+              <button class="danger" id="btnResetForm" type="button">איפוס הטופס</button>
+            </div>
+          </details>
+        </section>
+
+        <datalist id="appSuggestions"></datalist>
       </div>
+
+      <aside class="builder-preview">
+        <section class="card">
+          <div class="card-head">
+            <div class="icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/></svg>
+            </div>
+            <h2>הברקוד מוכן לסריקה</h2>
+          </div>
+          <ul class="issues" id="issues"></ul>
+          <div class="qr-box" id="settingsQrWrap"></div>
+          <ul class="summary" id="summary"></ul>
+          <div class="btn-row no-print" id="settingsActions">
+            <button class="primary small" id="btnDownloadSettingsQr" type="button">הורד תמונה</button>
+            <button class="ghost" id="btnPrintSettings" type="button">הדפס</button>
+            <button class="ghost" id="btnCopySettings" type="button">העתק טקסט</button>
+          </div>
+          <p class="hint no-print" style="margin:0">
+            סורקים במכשיר במסך הפתיחה ("סריקת ברקוד הגדרות"), או אחרי ההגדרה מתוך ההגדרות באפליקציה.
+            אותו ברקוד מגדיר כמה מכשירים זהים. הטופס נשמר אוטומטית בדפדפן (בלי הסוד).
+          </p>
+        </section>
+      </aside>
     </div>
   </section>
 
-</div>
-
-<div class="container wide">
-
-  <section class="card" id="settingsCard">
-    <div class="card-head">
-      <div class="icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-      </div>
-      <h2>שלב 3 — בניית ברקוד הגדרות</h2>
-    </div>
-    <p class="desc">
-      בנו כאן חבילת הגדרות מלאה (חבילת סינון, קטגוריות, הגבלות זמן, אפליקציות פטורות ועוד) יחד עם
-      סוד-המאסטר, וקבלו ברקוד אחד שאפשר לסרוק בכל מכשיר שרוצים להגדיר כך — גם בהקמה ראשונית וגם
-      מאוחר יותר, מתוך ההגדרות באפליקציה ("סרוק ברקוד הגדרות"). במכשיר שכבר משויך למנהל, ההגדרות
-      יוחלו רק אם סוד-המאסטר בברקוד תואם לו. אפשר לסרוק את אותו ברקוד בכמה מכשירים כדי להגדיר את
-      כולם באותה תצורה.
-    </p>
-
-    <div class="field">
-      <label>סוד-המאסטר</label>
-      <input type="text" id="setMaster" placeholder="ABCD-EFGH-2345-...">
-    </div>
-
-    <div class="toolbar" style="margin:0">
-      <button class="ghost small" id="btnLoadCatalogForSettings">טענו קטלוג אפליקציות</button>
-      <span class="status" id="settingsCatalogStatus">לא נטען קטלוג — עובדים עם רשימת ברירת המחדל של הפרופילים.</span>
-    </div>
-
-    <div class="field">
-      <label>חבילת סינון</label>
-      <select id="setProfile"></select>
-    </div>
-
-    <div class="field">
-      <label>קטגוריות מותאמות (בנוסף לקטגוריות של החבילה שנבחרה)</label>
-      <div class="checkbox-list" id="setCategories"></div>
-    </div>
-
-    <div class="field">
-      <label>אפליקציות ספציפיות חסומות — package name אחד בכל שורה</label>
-      <textarea id="setCustomApps" rows="3" placeholder="com.example.app"></textarea>
-    </div>
-
-    <div class="switch-row">
-      <span>סינון פעיל</span>
-      <label class="switch"><input type="checkbox" id="setFilteringEnabled" checked><span class="slider"></span></label>
-    </div>
-
-    <hr class="divider">
-
-    <div class="switch-row">
-      <span>שעות השבתה</span>
-      <label class="switch"><input type="checkbox" id="setDowntimeEnabled"><span class="slider"></span></label>
-    </div>
-    <div class="two-col">
-      <div class="field"><label>התחלה</label><input type="time" id="setDowntimeStart" value="21:00"></div>
-      <div class="field"><label>סיום</label><input type="time" id="setDowntimeEnd" value="07:00"></div>
-    </div>
-
-    <div class="switch-row">
-      <span>מגבלת זמן יומית כללית</span>
-      <label class="switch"><input type="checkbox" id="setDailyLimitEnabled"><span class="slider"></span></label>
-    </div>
-    <div class="field">
-      <label>דקות ליום</label>
-      <input type="number" id="setDailyLimitMinutes" value="60" min="1">
-    </div>
-
-    <div class="field">
-      <label>אפליקציות עם הגבלת זמן — package name, ואפשר גם package:דקות לטיימר אישי</label>
-      <textarea id="setTimeLimitedApps" rows="3" placeholder="com.instagram.android:30"></textarea>
-    </div>
-
-    <div class="field">
-      <label>אפליקציות פטורות תמיד (טלפון, מצלמה וכו') — package name אחד בכל שורה</label>
-      <textarea id="setEssentialApps" rows="2" placeholder="com.android.dialer"></textarea>
-    </div>
-
-    <button class="primary" id="btnBuildSettingsQr">בנו ברקוד הגדרות</button>
-
-    <div class="result-box ok" id="settingsResult">
-      <div>
-        <label>ברקוד הגדרות (טקסט מלא)</label>
-        <div class="copy-row">
-          <div class="code-display small" id="settingsText" style="flex:1"></div>
-          <button class="ghost" id="btnCopySettings">העתק</button>
+  <!-- ================= Master secret ================= -->
+  <section class="panel" data-panel="master">
+    <div class="panel-grid">
+      <section class="card no-print">
+        <div class="card-head">
+          <div class="icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3M16 7l3 3M14 9l2 2"/></svg>
+          </div>
+          <h2>סוד-מאסטר חדש</h2>
         </div>
-      </div>
-      <div id="settingsQrWrap"></div>
-      <p class="hint">סרקו ברקוד זה במכשיר — בהקמה ראשונית, או מתוך ההגדרות ("סרוק ברקוד הגדרות") בכל שלב מאוחר יותר.</p>
+        <p class="desc">
+          צרו סוד-מאסטר <strong>פעם אחת בלבד</strong>. הוא משמש לכל המכשירים שתנהלו. שמרו אותו במקום
+          בטוח (מנהל סיסמאות) — אובדן שלו מונע פתיחה של כל המכשירים, וחשיפתו חושפת את כולם.
+        </p>
+        <p class="desc">כבר יש לכם סוד? פשוט הדביקו אותו בשורה למעלה.</p>
+        <button class="primary" id="btnGenerate" type="button">צרו סוד-מאסטר חדש</button>
+      </section>
+
+      <section class="card" id="masterResultCard" hidden>
+        <div class="card-head">
+          <div class="icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+          </div>
+          <h2>הסוד שנוצר</h2>
+        </div>
+        <div class="code-display small" id="masterText"></div>
+        <div class="qr-box" id="qrCanvasWrap"></div>
+        <div class="btn-row no-print">
+          <button class="ghost" id="btnCopyMaster" type="button">העתק</button>
+          <button class="ghost" id="btnDownloadMasterQr" type="button">הורד תמונה</button>
+          <button class="ghost" id="btnPrintMaster" type="button">הדפס</button>
+        </div>
+        <p class="hint no-print" style="margin:0">
+          הסוד הוזן גם בשורה למעלה. ברקוד זה משייך מכשיר בשלב השיוך בהגדרה הרגילה. הקוד לא נשמר
+          בשום מקום — אם תרעננו את העמוד בלי לשמור אותו, הוא יאבד.
+        </p>
+      </section>
     </div>
   </section>
 
@@ -184,6 +285,9 @@
 <div class="toast" id="toast"></div>
 
 <script>
+// ---------------------------------------------------------------------------
+// Crypto — must stay byte-identical with AdminKeyManager.kt and kosherguard_admin.py
+// ---------------------------------------------------------------------------
 const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
 function base32Encode(bytes) {
@@ -250,126 +354,595 @@ async function computeResponseCode(deviceSecret, challenge) {
   return code;
 }
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+
+// Browser storage is only a convenience here (it can be blocked, e.g. in private mode).
+const store = {
+  get(key, fallback) {
+    try { const v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v); } catch { return fallback; }
+  },
+  set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} },
+  remove(key) { try { localStorage.removeItem(key); } catch {} },
+};
+
 function showToast(msg) {
-  const t = document.getElementById("toast");
+  const t = $("toast");
   t.textContent = msg;
   t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), 1600);
+  clearTimeout(showToast.timer);
+  showToast.timer = setTimeout(() => t.classList.remove("show"), 1800);
 }
 
 function copyText(text) {
-  navigator.clipboard.writeText(text).then(() => showToast("הועתק"));
+  navigator.clipboard.writeText(text).then(() => showToast("הועתק"), () => showToast("ההעתקה נכשלה"));
 }
 
-function renderQr(container, text) {
-  container.innerHTML = "";
+function makeQr(text) {
   const qr = qrcode(0, "M");
   qr.addData(text);
   qr.make();
-  container.innerHTML = qr.createSvgTag({ cellSize: 5, margin: 8 });
+  return qr;
 }
 
-document.getElementById("btnGenerate").addEventListener("click", () => {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  const recoveryCode = toRecoveryCode(bytes);
+function renderQr(container, text) {
+  container.innerHTML = makeQr(text).createSvgTag({ cellSize: 5, margin: 8 });
+}
 
-  document.getElementById("masterText").textContent = recoveryCode;
-  document.getElementById("masterResult").classList.add("show");
-  if (!document.getElementById("setMaster").value) {
-    document.getElementById("setMaster").value = recoveryCode;
+function downloadQr(text, filename) {
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = img.width;
+    canvas.height = img.height;
+    canvas.getContext("2d").drawImage(img, 0, 0);
+    const a = document.createElement("a");
+    a.href = canvas.toDataURL("image/png");
+    a.download = filename;
+    a.click();
+  };
+  img.src = makeQr(text).createDataURL(8, 16);
+}
+
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") node.className = v;
+    else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+    else if (v === true) node.setAttribute(k, "");
+    else if (v !== false && v != null) node.setAttribute(k, v);
   }
-  renderQr(document.getElementById("qrCanvasWrap"), recoveryCode);
+  children.flat().forEach((c) => node.append(c));
+  return node;
+}
+
+// ---------------------------------------------------------------------------
+// Master secret bar (shared by every tab)
+// ---------------------------------------------------------------------------
+const MASTER_KEY = "kg.master";
+
+function masterValue() { return $("master").value.trim(); }
+function masterBytes() { return base32Decode(masterValue()); }
+function masterValid() { return masterValue() !== "" && masterBytes().length === 32; }
+
+function refreshMasterBar() {
+  const badge = $("masterBadge");
+  const hint = $("masterHint");
+  if (!masterValue()) {
+    badge.textContent = "";
+    hint.innerHTML = 'עוד אין לכם סוד? צרו אחד בלשונית <a href="#master">סוד-מאסטר</a>.';
+  } else if (masterValid()) {
+    badge.className = "badge ok";
+    badge.textContent = "✓ תקין";
+    hint.textContent = $("rememberMaster").checked
+      ? "הסוד שמור בדפדפן הזה. בטלו את הסימון במחשב משותף."
+      : "הסוד נשמר רק בעמוד הפתוח, ונמחק ברענון.";
+  } else {
+    badge.className = "badge bad";
+    badge.textContent = `✗ ${masterBytes().length}/32 בייטים`;
+    hint.textContent = "הסוד לא שלם — בדקו שהועתק במלואו.";
+  }
+  if ($("rememberMaster").checked) {
+    if (masterValid()) store.set(MASTER_KEY, masterValue());
+  }
+}
+
+$("master").addEventListener("input", () => {
+  refreshMasterBar();
+  computeUnlock();
+  refreshSettings();
+});
+$("btnToggleMaster").addEventListener("click", () => {
+  const input = $("master");
+  const show = input.type === "password";
+  input.type = show ? "text" : "password";
+  $("btnToggleMaster").textContent = show ? "הסתר" : "הצג";
+});
+$("rememberMaster").addEventListener("change", (e) => {
+  if (e.target.checked) {
+    if (!confirm("הסוד יישמר בדפדפן הזה, וכל מי שמשתמש במחשב יוכל לפתוח את המכשירים שלכם. להמשיך?")) {
+      e.target.checked = false;
+      return;
+    }
+    if (masterValid()) store.set(MASTER_KEY, masterValue());
+  } else {
+    store.remove(MASTER_KEY);
+  }
+  refreshMasterBar();
 });
 
-document.getElementById("btnCopyMaster").addEventListener("click", () => {
-  copyText(document.getElementById("masterText").textContent);
-});
+function setMaster(value) {
+  $("master").value = value;
+  refreshMasterBar();
+  computeUnlock();
+  refreshSettings();
+}
 
-document.getElementById("btnUnlock").addEventListener("click", async () => {
-  const masterInput = document.getElementById("inMaster").value.trim();
-  const label = document.getElementById("inLabel").value.trim();
-  const challenge = document.getElementById("inChallenge").value.trim();
+// ---------------------------------------------------------------------------
+// Tabs
+// ---------------------------------------------------------------------------
+function showTab(name) {
+  if (!document.querySelector(`.panel[data-panel="${name}"]`)) name = "unlock";
+  document.querySelectorAll(".tab[data-tab]").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
+  document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("active", p.dataset.panel === name));
+  if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
+  if (name === "unlock") $("inLabel").focus();
+}
+document.querySelectorAll(".tab[data-tab]").forEach((t) => t.addEventListener("click", () => showTab(t.dataset.tab)));
+window.addEventListener("hashchange", () => showTab(location.hash.slice(1)));
 
-  const warnBox = document.getElementById("unlockWarn");
-  const resultBox = document.getElementById("unlockResult");
-  warnBox.classList.remove("show");
-  resultBox.classList.remove("show");
+// ---------------------------------------------------------------------------
+// Unlock tab
+// ---------------------------------------------------------------------------
+const RECENT_KEY = "kg.recentDevices";
+let lastUnlockCode = "";
 
-  if (!masterInput || !label || !challenge) {
-    warnBox.textContent = "יש למלא את שלושת השדות.";
-    warnBox.classList.add("show");
+function rememberDevice(label) {
+  if (!label) return;
+  const list = store.get(RECENT_KEY, []).filter((l) => l !== label);
+  list.unshift(label);
+  store.set(RECENT_KEY, list.slice(0, 12));
+  renderRecentDevices();
+}
+
+function renderRecentDevices() {
+  const list = store.get(RECENT_KEY, []);
+  $("recentDevicesList").replaceChildren(...list.map((l) => el("option", { value: l })));
+  $("recentDevices").replaceChildren(...list.map((label) =>
+    el("span", { class: "chip", title: "בחרו מכשיר זה", onclick: () => { $("inLabel").value = label; $("inChallenge").focus(); computeUnlock(); } },
+      el("span", { class: "chip-name" }, label),
+      el("button", {
+        type: "button", title: "הסר מהרשימה",
+        onclick: (e) => { e.stopPropagation(); store.set(RECENT_KEY, store.get(RECENT_KEY, []).filter((l) => l !== label)); renderRecentDevices(); },
+      }, "×"))
+  ));
+}
+
+async function computeUnlock() {
+  const label = $("inLabel").value.trim();
+  const challenge = $("inChallenge").value.replace(/\D/g, "");
+  const warn = $("unlockWarn");
+  warn.classList.remove("show");
+  $("unlockResult").classList.remove("show");
+  $("unlockIdle").hidden = false;
+  lastUnlockCode = "";
+
+  if (!label || challenge.length !== 6) return;
+  if (!masterValid()) {
+    warn.textContent = "הזינו סוד-מאסטר תקין בשורה למעלה.";
+    warn.classList.add("show");
     return;
   }
+  const deviceSecret = await deriveDeviceSecret(masterBytes(), label);
+  const code = await computeResponseCode(deviceSecret, challenge);
+  lastUnlockCode = code;
+  $("unlockCode").textContent = code.slice(0, 4) + " " + code.slice(4);
+  $("unlockResult").classList.add("show");
+  $("unlockIdle").hidden = true;
+}
 
-  const masterBytes = base32Decode(masterInput);
-  if (masterBytes.length !== 32) {
-    warnBox.textContent = `אזהרה: אורך הסוד אינו תקין (${masterBytes.length} בייטים, צריך 32). ודאו שהקוד הוקלד נכון.`;
-    warnBox.classList.add("show");
+$("inLabel").addEventListener("input", computeUnlock);
+$("inLabel").addEventListener("keydown", (e) => { if (e.key === "Enter") $("inChallenge").focus(); });
+$("inChallenge").addEventListener("input", (e) => {
+  e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6);
+  computeUnlock().then(() => { if (lastUnlockCode) rememberDevice($("inLabel").value.trim()); });
+});
+$("btnCopyUnlock").addEventListener("click", () => copyText(lastUnlockCode));
+$("btnNewRequest").addEventListener("click", () => {
+  $("inChallenge").value = "";
+  computeUnlock();
+  $("inChallenge").focus();
+});
+
+// ---------------------------------------------------------------------------
+// Catalog + app names
+// ---------------------------------------------------------------------------
+const DEFAULT_CATALOG = {
+  categories: [
+    { id: "social", title: "רשתות חברתיות", packages: ["com.instagram.android", "com.facebook.katana", "com.facebook.lite", "com.zhiliaoapp.musically", "com.ss.android.ugc.trill", "com.snapchat.android", "com.twitter.android", "com.pinterest", "com.reddit.frontpage"] },
+    { id: "video", title: "וידאו וסטרימינג", packages: ["com.google.android.youtube", "com.netflix.mediaclient", "tv.twitch.android.app", "com.disney.disneyplus"] },
+    { id: "browser", title: "דפדפנים לא מסוננים", packages: ["com.android.chrome", "org.mozilla.firefox", "com.sec.android.app.sbrowser", "com.microsoft.emmx", "com.opera.browser", "com.brave.browser"] },
+    { id: "messaging", title: "מסרים ותקשורת", packages: ["com.whatsapp", "org.telegram.messenger", "com.facebook.orca", "com.discord"] },
+    { id: "dating", title: "אפליקציות היכרויות", packages: ["com.tinder", "com.bumble.app", "com.okcupid.okcupid"] },
+  ],
+  profiles: [
+    { id: "basic", title: "בסיסי", subtitle: "חוסם רשתות חברתיות ואפליקציות היכרויות", categoryIds: ["social", "dating"] },
+    { id: "recommended", title: "מומלץ", subtitle: "חוסם רשתות חברתיות, וידאו, היכרויות ודפדפנים לא מסוננים", categoryIds: ["social", "video", "dating", "browser"] },
+    { id: "strict", title: "מחמיר", subtitle: "חוסם הכל מלבד אפליקציות חיוניות שתבחר", categoryIds: ["social", "video", "dating", "browser", "messaging"] },
+    { id: "custom", title: "מותאם אישית", subtitle: "בחר בעצמך אילו אפליקציות וקטגוריות לחסום", categoryIds: [] },
+  ],
+  whitelistDefaults: [],
+};
+
+const APP_NAMES = {
+  "com.instagram.android": "Instagram", "com.facebook.katana": "Facebook", "com.facebook.lite": "Facebook Lite",
+  "com.zhiliaoapp.musically": "TikTok", "com.ss.android.ugc.trill": "TikTok (גרסה אסייתית)", "com.snapchat.android": "Snapchat",
+  "com.twitter.android": "X (Twitter)", "com.pinterest": "Pinterest", "com.reddit.frontpage": "Reddit",
+  "com.google.android.youtube": "YouTube", "com.netflix.mediaclient": "Netflix", "tv.twitch.android.app": "Twitch",
+  "com.disney.disneyplus": "Disney+", "com.android.chrome": "Chrome", "org.mozilla.firefox": "Firefox",
+  "com.sec.android.app.sbrowser": "Samsung Internet", "com.microsoft.emmx": "Edge", "com.opera.browser": "Opera",
+  "com.brave.browser": "Brave", "com.whatsapp": "WhatsApp", "com.whatsapp.w4b": "WhatsApp Business",
+  "org.telegram.messenger": "Telegram", "com.facebook.orca": "Messenger", "com.discord": "Discord",
+  "com.tinder": "Tinder", "com.bumble.app": "Bumble", "com.okcupid.okcupid": "OkCupid",
+  "com.waze": "Waze", "com.google.android.apps.maps": "Google Maps", "com.tranzmate": "Moovit",
+  "com.google.android.gm": "Gmail", "com.google.android.calendar": "Google Calendar", "com.google.android.keep": "Google Keep",
+  "com.google.android.apps.photos": "Google Photos", "com.android.vending": "Google Play",
+  "com.spotify.music": "Spotify", "com.google.android.apps.youtube.music": "YouTube Music", "us.zoom.videomeetings": "Zoom",
+  "com.roblox.client": "Roblox", "com.mojang.minecraftpe": "Minecraft", "com.supercell.clashofclans": "Clash of Clans",
+  "com.king.candycrushsaga": "Candy Crush",
+  "com.android.dialer": "טלפון", "com.google.android.dialer": "טלפון (Google)", "com.samsung.android.dialer": "טלפון (Samsung)",
+  "com.android.mms": "הודעות", "com.google.android.apps.messaging": "הודעות (Google)", "com.samsung.android.messaging": "הודעות (Samsung)",
+  "com.android.camera2": "מצלמה", "com.google.android.GoogleCamera": "מצלמה (Pixel)", "com.sec.android.app.camera": "מצלמה (Samsung)",
+  "com.android.contacts": "אנשי קשר", "com.android.calculator2": "מחשבון", "com.google.android.calculator": "מחשבון (Google)",
+  "com.android.deskclock": "שעון", "com.google.android.deskclock": "שעון (Google)",
+};
+
+let catalog = store.get("kg.catalog", null) || DEFAULT_CATALOG;
+
+function appName(pkg) { return APP_NAMES[pkg] || null; }
+
+function allKnownPackages() {
+  const set = new Set(Object.keys(APP_NAMES));
+  catalog.categories.forEach((c) => c.packages.forEach((p) => set.add(p)));
+  (catalog.whitelistDefaults || []).forEach((p) => set.add(p));
+  return [...set];
+}
+
+function renderSuggestions() {
+  const opts = allKnownPackages()
+    .sort((a, b) => (appName(a) || a).localeCompare(appName(b) || b))
+    .map((pkg) => el("option", { value: pkg, label: appName(pkg) || pkg }));
+  $("appSuggestions").replaceChildren(...opts);
+}
+
+const PACKAGE_RE = /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$/;
+
+/** Turns what the admin typed (a package, a known app name, or several separated by commas/lines) into packages. */
+function resolveApps(text) {
+  const byName = {};
+  for (const pkg of allKnownPackages()) if (appName(pkg)) byName[appName(pkg).toLowerCase()] = pkg;
+  const good = [], bad = [];
+  text.split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean).forEach((token) => {
+    if (byName[token.toLowerCase()]) good.push(byName[token.toLowerCase()]);
+    else if (PACKAGE_RE.test(token)) good.push(token);
+    else bad.push(token);
+  });
+  return { good, bad };
+}
+
+// ---------------------------------------------------------------------------
+// Settings builder state
+// ---------------------------------------------------------------------------
+const DRAFT_KEY = "kg.settingsDraft";
+
+function defaultState() {
+  return {
+    profileId: "recommended",
+    filteringEnabled: true,
+    customCategoryIds: [],
+    customAppPackages: [],
+    timeLimitMode: "whitelist",
+    whitelist: [],
+    blacklist: [], // [{ pkg, minutes: number|null }]
+    downtimeEnabled: false,
+    downtimeStart: "21:00",
+    downtimeEnd: "07:00",
+    dailyLimitEnabled: false,
+    dailyLimitMinutes: 60,
+    essential: [],
+  };
+}
+
+let state = Object.assign(defaultState(), store.get(DRAFT_KEY, {}));
+
+/** A chip list editor bound to state[key] (an array of package names). */
+function chipEditor(containerId, key, placeholder) {
+  const container = $(containerId);
+  const chips = el("div", { class: "chips" });
+  const input = el("input", { type: "text", list: "appSuggestions", placeholder, autocomplete: "off" });
+  const add = () => {
+    const { good, bad } = resolveApps(input.value);
+    good.forEach((p) => { if (!state[key].includes(p)) state[key].push(p); });
+    input.value = bad.join(", ");
+    if (bad.length) showToast("לא זוהה: " + bad.join(", "));
+    render();
+    refreshSettings();
+  };
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); add(); } });
+  input.addEventListener("change", () => { if (PACKAGE_RE.test(input.value.trim())) add(); });
+  const row = el("div", { class: "add-row" }, input, el("button", { class: "ghost", type: "button", onclick: add }, "הוסף"));
+  container.replaceChildren(chips, row);
+
+  function render() {
+    if (!state[key].length) {
+      chips.replaceChildren(el("p", { class: "empty-note" }, "אין עדיין אפליקציות ברשימה."));
+      return;
+    }
+    chips.replaceChildren(...state[key].map((pkg, i) =>
+      el("span", { class: "chip", title: pkg },
+        el("span", { class: appName(pkg) ? "chip-name" : "" }, appName(pkg) || pkg),
+        el("button", { type: "button", title: "הסר", onclick: () => { state[key].splice(i, 1); render(); refreshSettings(); } }, "×"))
+    ));
+  }
+  render();
+  return render;
+}
+
+const editors = {};
+
+function renderProfiles() {
+  if (!catalog.profiles.some((p) => p.id === state.profileId)) state.profileId = catalog.profiles[0]?.id || "recommended";
+  $("profileCards").replaceChildren(...catalog.profiles.map((p) =>
+    el("label", { class: "radio-card" },
+      el("input", {
+        type: "radio", name: "profile", value: p.id, checked: p.id === state.profileId,
+        onchange: () => { state.profileId = p.id; renderCategories(); refreshSettings(); },
+      }),
+      el("strong", {}, p.title),
+      el("span", {}, p.subtitle || ""))
+  ));
+}
+
+function profileCategoryIds() {
+  return (catalog.profiles.find((p) => p.id === state.profileId) || {}).categoryIds || [];
+}
+
+function renderCategories() {
+  const included = profileCategoryIds();
+  $("categoryPills").replaceChildren(...catalog.categories.map((c) => {
+    const inProfile = included.includes(c.id);
+    return el("label", { class: "pill-toggle", title: inProfile ? "כלול כבר בחבילה" : "" },
+      el("input", {
+        type: "checkbox", value: c.id, disabled: inProfile,
+        checked: inProfile || state.customCategoryIds.includes(c.id),
+        onchange: (e) => {
+          state.customCategoryIds = state.customCategoryIds.filter((id) => id !== c.id);
+          if (e.target.checked) state.customCategoryIds.push(c.id);
+          refreshSettings();
+        },
+      }),
+      c.title);
+  }));
+}
+
+function renderMode() {
+  document.querySelectorAll("#modeSwitch button").forEach((b) => b.classList.toggle("active", b.dataset.mode === state.timeLimitMode));
+  $("whitelistBlock").hidden = state.timeLimitMode !== "whitelist";
+  $("blacklistBlock").hidden = state.timeLimitMode !== "blacklist";
+}
+
+function renderBlacklist() {
+  const rows = $("blacklistRows");
+  if (!state.blacklist.length) {
+    rows.replaceChildren(el("p", { class: "empty-note" }, "הוסיפו לפחות אפליקציה אחת שתוגבל."));
     return;
   }
-
-  const deviceSecret = await deriveDeviceSecret(masterBytes, label);
-  const response = await computeResponseCode(deviceSecret, challenge);
-
-  document.getElementById("unlockCode").textContent = response;
-  resultBox.classList.add("show");
-});
-
-document.getElementById("btnCopyUnlock").addEventListener("click", () => {
-  copyText(document.getElementById("unlockCode").textContent);
-});
-
-document.getElementById("inChallenge").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") document.getElementById("btnUnlock").click();
-});
-
-// ---- Step 3: settings QR ----
-
-const DEFAULT_PROFILES = [
-  { id: "basic", title: "בסיסי" },
-  { id: "recommended", title: "מומלץ" },
-  { id: "strict", title: "מחמיר" },
-  { id: "custom", title: "מותאם אישית" },
-];
-const DEFAULT_CATEGORIES = [
-  { id: "social", title: "רשתות חברתיות" },
-  { id: "video", title: "וידאו וסטרימינג" },
-  { id: "browser", title: "דפדפנים לא מסוננים" },
-  { id: "messaging", title: "מסרים ותקשורת" },
-  { id: "dating", title: "אפליקציות היכרויות" },
-];
-
-function renderProfileOptions(profiles) {
-  const select = document.getElementById("setProfile");
-  const previous = select.value;
-  select.innerHTML = "";
-  profiles.forEach((p) => {
-    const opt = document.createElement("option");
-    opt.value = p.id;
-    opt.textContent = `${p.title} (${p.id})`;
-    select.appendChild(opt);
-  });
-  if (profiles.some((p) => p.id === previous)) select.value = previous;
+  rows.replaceChildren(...state.blacklist.map((item, i) =>
+    el("div", { class: "app-row" },
+      el("div", { class: "app-name" },
+        el("strong", {}, appName(item.pkg) || item.pkg),
+        el("code", {}, item.pkg)),
+      el("input", {
+        type: "number", min: "1", max: "1440", placeholder: "דקות (משותף)",
+        title: "טיימר יומי אישי בדקות. ריק = לפי הזמן היומי המשותף",
+        value: item.minutes ?? "",
+        oninput: (e) => { const n = parseInt(e.target.value, 10); item.minutes = n > 0 ? n : null; refreshSettings(); },
+      }),
+      el("button", { class: "danger", type: "button", title: "הסר", onclick: () => { state.blacklist.splice(i, 1); renderBlacklist(); refreshSettings(); } }, "הסר"))
+  ));
 }
 
-function renderCategoryCheckboxes(categories) {
-  const wrap = document.getElementById("setCategories");
-  wrap.innerHTML = "";
-  categories.forEach((c) => {
-    const id = `setCat_${c.id}`;
-    const label = document.createElement("label");
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.id = id;
-    checkbox.value = c.id;
-    label.appendChild(checkbox);
-    label.appendChild(document.createTextNode(c.title));
-    wrap.appendChild(label);
-  });
+function addToBlacklist() {
+  const input = $("blacklistInput");
+  const { good, bad } = resolveApps(input.value);
+  good.forEach((pkg) => { if (!state.blacklist.some((b) => b.pkg === pkg)) state.blacklist.push({ pkg, minutes: null }); });
+  input.value = bad.join(", ");
+  if (bad.length) showToast("לא זוהה: " + bad.join(", "));
+  renderBlacklist();
+  refreshSettings();
+}
+$("btnBlacklistAdd").addEventListener("click", addToBlacklist);
+$("blacklistInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addToBlacklist(); } });
+$("blacklistInput").addEventListener("change", (e) => { if (PACKAGE_RE.test(e.target.value.trim())) addToBlacklist(); });
+
+document.querySelectorAll("#modeSwitch button").forEach((b) => b.addEventListener("click", () => {
+  state.timeLimitMode = b.dataset.mode;
+  renderMode();
+  refreshSettings();
+}));
+
+function bindSimpleFields() {
+  const bind = (id, key, prop = "value", parse = (v) => v) => {
+    const node = $(id);
+    node[prop] = state[key];
+    node.addEventListener(prop === "checked" ? "change" : "input", () => { state[key] = parse(node[prop]); syncFieldVisibility(); refreshSettings(); });
+  };
+  bind("setFilteringEnabled", "filteringEnabled", "checked");
+  bind("setDowntimeEnabled", "downtimeEnabled", "checked");
+  bind("setDowntimeStart", "downtimeStart");
+  bind("setDowntimeEnd", "downtimeEnd");
+  bind("setDailyLimitEnabled", "dailyLimitEnabled", "checked");
+  bind("setDailyLimitMinutes", "dailyLimitMinutes", "value", (v) => parseInt(v, 10) || 0);
 }
 
-renderProfileOptions(DEFAULT_PROFILES);
-renderCategoryCheckboxes(DEFAULT_CATEGORIES);
+function syncFieldVisibility() {
+  $("downtimeFields").hidden = !state.downtimeEnabled;
+  $("dailyFields").hidden = !state.dailyLimitEnabled;
+}
+
+document.querySelectorAll("#dailyQuickPicks button").forEach((b) => b.addEventListener("click", () => {
+  state.dailyLimitMinutes = parseInt(b.dataset.min, 10);
+  $("setDailyLimitMinutes").value = state.dailyLimitMinutes;
+  refreshSettings();
+}));
+
+function renderAllForm() {
+  renderProfiles();
+  renderCategories();
+  renderMode();
+  renderBlacklist();
+  editors.custom = chipEditor("customAppsEditor", "customAppPackages", "שם או package, למשל Chrome");
+  editors.whitelist = chipEditor("whitelistEditor", "whitelist", "שם או package, למשל Waze");
+  editors.essential = chipEditor("essentialEditor", "essential", "package, למשל com.android.dialer");
+  $("setFilteringEnabled").checked = state.filteringEnabled;
+  $("setDowntimeEnabled").checked = state.downtimeEnabled;
+  $("setDowntimeStart").value = state.downtimeStart;
+  $("setDowntimeEnd").value = state.downtimeEnd;
+  $("setDailyLimitEnabled").checked = state.dailyLimitEnabled;
+  $("setDailyLimitMinutes").value = state.dailyLimitMinutes;
+  syncFieldVisibility();
+}
+
+// ---------------------------------------------------------------------------
+// Build + validate + preview
+// ---------------------------------------------------------------------------
+function parseTimeToMinutes(value) {
+  const [h, m] = (value || "0:0").split(":").map(Number);
+  return h * 60 + m;
+}
+
+function buildSettings() {
+  const blacklist = state.timeLimitMode === "blacklist";
+  const included = profileCategoryIds();
+  const perAppLimitMinutes = {};
+  if (blacklist) state.blacklist.forEach((b) => { if (b.minutes) perAppLimitMinutes[b.pkg] = b.minutes; });
+  const settings = {
+    profileId: state.profileId,
+    customCategoryIds: state.customCategoryIds.filter((id) => !included.includes(id)),
+    customAppPackages: state.customAppPackages,
+    filteringEnabled: state.filteringEnabled,
+    timeLimitMode: state.timeLimitMode,
+    timeLimitWhitelistPackages: blacklist ? [] : state.whitelist,
+    timeLimitedAppPackages: blacklist ? state.blacklist.map((b) => b.pkg) : [],
+    perAppLimitMinutes,
+    downtimeEnabled: state.downtimeEnabled,
+    downtimeStartMinutes: parseTimeToMinutes(state.downtimeStart),
+    downtimeEndMinutes: parseTimeToMinutes(state.downtimeEnd),
+    dailyDeviceLimitEnabled: state.dailyLimitEnabled,
+    dailyDeviceLimitMinutes: state.dailyLimitMinutes,
+  };
+  if (state.essential.length) settings.essentialAppPackages = state.essential;
+  return settings;
+}
+
+function validate() {
+  const issues = [];
+  if (!masterValue()) issues.push("הזינו את סוד-המאסטר בשורה למעלה.");
+  else if (!masterValid()) issues.push("סוד-המאסטר בשורה למעלה אינו תקין.");
+  if (state.timeLimitMode === "blacklist" && !state.blacklist.length) issues.push("ברשימה שחורה צריך לפחות אפליקציה אחת.");
+  if (state.dailyLimitEnabled && !(state.dailyLimitMinutes >= 1 && state.dailyLimitMinutes <= 1440)) issues.push("מספר הדקות היומי צריך להיות בין 1 ל-1440.");
+  if (state.downtimeEnabled && state.downtimeStart === state.downtimeEnd) issues.push("שעת ההתחלה והסיום של ההשבתה זהות.");
+  return issues;
+}
+
+function listNames(pkgs, max = 4) {
+  const names = pkgs.map((p) => appName(p) || p);
+  return names.length <= max ? names.join(", ") : names.slice(0, max).join(", ") + ` ועוד ${names.length - max}`;
+}
+
+function summaryLines(s) {
+  const lines = [];
+  const profile = catalog.profiles.find((p) => p.id === s.profileId);
+  lines.push(`חבילת סינון: ${profile ? profile.title : s.profileId}${s.filteringEnabled ? "" : " (הסינון כבוי)"}`);
+  if (s.customCategoryIds.length) lines.push("קטגוריות נוספות: " + s.customCategoryIds.map((id) => (catalog.categories.find((c) => c.id === id) || {}).title || id).join(", "));
+  if (s.customAppPackages.length) lines.push("חסומות בנוסף: " + listNames(s.customAppPackages));
+
+  const anyLimit = s.downtimeEnabled || s.dailyDeviceLimitEnabled || Object.keys(s.perAppLimitMinutes).length;
+  if (!anyLimit) {
+    lines.push("ללא הגבלות זמן");
+  } else {
+    const scope = s.timeLimitMode === "blacklist"
+      ? "רק על: " + listNames(s.timeLimitedAppPackages)
+      : (s.timeLimitWhitelistPackages.length ? "על כל המכשיר חוץ מ: " + listNames(s.timeLimitWhitelistPackages) : "על כל המכשיר");
+    lines.push("הגבלות הזמן חלות " + scope);
+    if (s.downtimeEnabled) lines.push(`השבתה: ${state.downtimeStart}–${state.downtimeEnd}`);
+    if (s.dailyDeviceLimitEnabled) lines.push(`זמן יומי משותף: ${s.dailyDeviceLimitMinutes} דקות`);
+    const timers = Object.entries(s.perAppLimitMinutes);
+    if (timers.length) lines.push("טיימרים אישיים: " + timers.map(([p, m]) => `${appName(p) || p} ${m} דק'`).join(", "));
+  }
+  return lines;
+}
+
+let lastSettingsText = "";
+
+function refreshSettings() {
+  store.set(DRAFT_KEY, state);
+  const issues = validate();
+  $("issues").replaceChildren(...issues.map((i) => el("li", {}, i)));
+  const ready = issues.length === 0;
+  $("settingsActions").hidden = !ready;
+  const settings = buildSettings();
+  $("summary").replaceChildren(...summaryLines(settings).map((l) => el("li", {}, l)));
+  if (!ready) {
+    $("settingsQrWrap").replaceChildren();
+    lastSettingsText = "";
+    return;
+  }
+  lastSettingsText = JSON.stringify({ kgSettings: 1, masterSecret: masterValue(), settings });
+  renderQr($("settingsQrWrap"), lastSettingsText);
+}
+
+$("btnCopySettings").addEventListener("click", () => copyText(lastSettingsText));
+$("btnDownloadSettingsQr").addEventListener("click", () => downloadQr(lastSettingsText, "kosherguard-settings.png"));
+$("btnPrintSettings").addEventListener("click", () => window.print());
+
+$("btnImport").addEventListener("click", () => {
+  let bundle;
+  try { bundle = JSON.parse($("importText").value.trim()); } catch { showToast("הטקסט אינו ברקוד הגדרות תקין"); return; }
+  if (!bundle || bundle.kgSettings !== 1 || !bundle.settings) { showToast("הטקסט אינו ברקוד הגדרות תקין"); return; }
+  const s = bundle.settings;
+  const next = defaultState();
+  const minutesToTime = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  if ("profileId" in s) next.profileId = s.profileId;
+  if ("filteringEnabled" in s) next.filteringEnabled = s.filteringEnabled;
+  if (s.customCategoryIds) next.customCategoryIds = s.customCategoryIds;
+  if (s.customAppPackages) next.customAppPackages = s.customAppPackages;
+  const limited = s.timeLimitedAppPackages || [];
+  next.timeLimitMode = s.timeLimitMode || (limited.length ? "blacklist" : "whitelist");
+  next.whitelist = s.timeLimitWhitelistPackages || [];
+  next.blacklist = limited.map((pkg) => ({ pkg, minutes: (s.perAppLimitMinutes || {})[pkg] ?? null }));
+  if ("downtimeEnabled" in s) next.downtimeEnabled = s.downtimeEnabled;
+  if ("downtimeStartMinutes" in s) next.downtimeStart = minutesToTime(s.downtimeStartMinutes);
+  if ("downtimeEndMinutes" in s) next.downtimeEnd = minutesToTime(s.downtimeEndMinutes);
+  if ("dailyDeviceLimitEnabled" in s) next.dailyLimitEnabled = s.dailyDeviceLimitEnabled;
+  if ("dailyDeviceLimitMinutes" in s) next.dailyLimitMinutes = s.dailyDeviceLimitMinutes;
+  if (s.essentialAppPackages) next.essential = s.essentialAppPackages;
+  state = next;
+  if (!masterValue() && bundle.masterSecret) setMaster(bundle.masterSecret);
+  $("importText").value = "";
+  renderAllForm();
+  refreshSettings();
+  showToast("ההגדרות נטענו לטופס");
+});
+
+$("btnResetForm").addEventListener("click", () => {
+  if (!confirm("לאפס את כל הטופס להגדרות ברירת המחדל?")) return;
+  state = defaultState();
+  renderAllForm();
+  refreshSettings();
+});
 
 async function loadCatalogFile() {
   if (window.showOpenFilePicker) {
@@ -392,70 +965,63 @@ async function loadCatalogFile() {
   });
 }
 
-document.getElementById("btnLoadCatalogForSettings").addEventListener("click", async () => {
+function renderCatalogStatus() {
+  const custom = store.get("kg.catalog", null);
+  $("catalogStatus").innerHTML = custom
+    ? `קטלוג שנטען מקובץ: <strong>${catalog.profiles.length}</strong> חבילות, <strong>${catalog.categories.length}</strong> קטגוריות.`
+    : "משתמשים בקטלוג המובנה.";
+  $("catalogStatus").style.color = "var(--muted)";
+}
+
+$("btnLoadCatalog").addEventListener("click", async () => {
   try {
-    const catalog = await loadCatalogFile();
-    renderProfileOptions(catalog.profiles);
-    renderCategoryCheckboxes(catalog.categories);
-    document.getElementById("settingsCatalogStatus").innerHTML =
-      `נטען קטלוג עם <strong>${catalog.profiles.length}</strong> פרופילים ו-<strong>${catalog.categories.length}</strong> קטגוריות.`;
+    const loaded = await loadCatalogFile();
+    if (!Array.isArray(loaded.profiles) || !Array.isArray(loaded.categories)) throw new Error("מבנה קובץ לא צפוי");
+    catalog = loaded;
+    store.set("kg.catalog", loaded);
+    renderCatalogStatus();
+    renderSuggestions();
+    renderAllForm();
+    refreshSettings();
+    showToast("הקטלוג נטען");
   } catch (err) {
     if (err.name !== "AbortError") showToast("שגיאה בטעינת הקטלוג: " + err.message);
   }
 });
 
-function parsePackageLines(text) {
-  return text.split("\n").map((line) => line.trim()).filter(Boolean);
-}
+// ---------------------------------------------------------------------------
+// Master-secret tab
+// ---------------------------------------------------------------------------
+let generatedMaster = "";
 
-function parseTimeToMinutes(value) {
-  const [h, m] = value.split(":").map(Number);
-  return h * 60 + m;
-}
-
-document.getElementById("btnBuildSettingsQr").addEventListener("click", () => {
-  const masterInput = document.getElementById("setMaster").value.trim();
-  if (!masterInput) { showToast("צריך סוד-מאסטר כדי לבנות ברקוד הגדרות"); return; }
-  const masterBytes = base32Decode(masterInput);
-  if (masterBytes.length !== 32) { showToast(`אורך הסוד אינו תקין (${masterBytes.length} בייטים, צריך 32)`); return; }
-
-  const customCategoryIds = Array.from(document.querySelectorAll("#setCategories input:checked")).map((el) => el.value);
-
-  const timeLimitedLines = parsePackageLines(document.getElementById("setTimeLimitedApps").value);
-  const timeLimitedAppPackages = [];
-  const perAppLimitMinutes = {};
-  timeLimitedLines.forEach((line) => {
-    const [pkg, minutes] = line.split(":").map((s) => s.trim());
-    timeLimitedAppPackages.push(pkg);
-    if (minutes) perAppLimitMinutes[pkg] = parseInt(minutes, 10);
-  });
-
-  const settings = {
-    profileId: document.getElementById("setProfile").value,
-    customCategoryIds,
-    customAppPackages: parsePackageLines(document.getElementById("setCustomApps").value),
-    filteringEnabled: document.getElementById("setFilteringEnabled").checked,
-    downtimeEnabled: document.getElementById("setDowntimeEnabled").checked,
-    downtimeStartMinutes: parseTimeToMinutes(document.getElementById("setDowntimeStart").value || "21:00"),
-    downtimeEndMinutes: parseTimeToMinutes(document.getElementById("setDowntimeEnd").value || "07:00"),
-    dailyDeviceLimitEnabled: document.getElementById("setDailyLimitEnabled").checked,
-    dailyDeviceLimitMinutes: parseInt(document.getElementById("setDailyLimitMinutes").value, 10) || 60,
-    timeLimitedAppPackages,
-    perAppLimitMinutes,
-    essentialAppPackages: parsePackageLines(document.getElementById("setEssentialApps").value),
-  };
-
-  const bundle = { kgSettings: 1, masterSecret: masterInput, settings };
-  const text = JSON.stringify(bundle);
-
-  document.getElementById("settingsText").textContent = text;
-  document.getElementById("settingsResult").classList.add("show");
-  renderQr(document.getElementById("settingsQrWrap"), text);
+$("btnGenerate").addEventListener("click", () => {
+  if (masterValue() && !confirm("כבר מוזן סוד-מאסטר. מכשירים קיימים ימשיכו לעבוד רק עם הסוד הישן. ליצור סוד חדש?")) return;
+  generatedMaster = toRecoveryCode(crypto.getRandomValues(new Uint8Array(32)));
+  $("masterText").textContent = generatedMaster;
+  renderQr($("qrCanvasWrap"), generatedMaster);
+  $("masterResultCard").hidden = false;
+  setMaster(generatedMaster);
 });
+$("btnCopyMaster").addEventListener("click", () => copyText(generatedMaster));
+$("btnDownloadMasterQr").addEventListener("click", () => downloadQr(generatedMaster, "kosherguard-master.png"));
+$("btnPrintMaster").addEventListener("click", () => window.print());
 
-document.getElementById("btnCopySettings").addEventListener("click", () => {
-  copyText(document.getElementById("settingsText").textContent);
-});
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+const savedMaster = store.get(MASTER_KEY, null);
+if (savedMaster) {
+  $("master").value = savedMaster;
+  $("rememberMaster").checked = true;
+}
+bindSimpleFields();
+renderSuggestions();
+renderCatalogStatus();
+renderRecentDevices();
+renderAllForm();
+refreshMasterBar();
+refreshSettings();
+showTab(location.hash.slice(1) || "unlock");
 </script>
 
 </body>
