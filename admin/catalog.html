@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>KosherGuard — קטלוג האפליקציות</title>
+<script src="../shared.js"></script>
 <link rel="stylesheet" href="../style.css">
 </head>
 <body>
@@ -13,28 +14,46 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4z"/><path d="M9 12l2 2 4-4" stroke="#60a5fa"/></svg>
     <h1>KosherGuard — קטלוג האפליקציות</h1>
   </div>
-  <p>קובע אילו אפליקציות נכללות בכל קטגוריה ובכל חבילת סינון (פרופיל) — בלי לגעת בקוד.</p>
-  <nav>
-    <a href="index.html">ניהול מכשירים</a>
-    <a href="catalog.html" class="active">קטלוג אפליקציות</a>
-  </nav>
+  <p>אילו אפליקציות נכללות בכל קטגוריה ובכל חבילת סינון — בלי לגעת בקוד.</p>
 </header>
 
-<div class="toolbar" id="toolbar">
-  <button class="primary small" id="btnOpen">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="vertical-align:-2px;margin-left:4px"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
-    פתחו קובץ קטלוג
-  </button>
-  <button class="ghost" id="btnSave" disabled>
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="vertical-align:-2px;margin-left:4px"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
-    שמרו
-  </button>
-  <button class="ghost" id="btnTogglePreview" disabled>הצג JSON</button>
-  <span class="status" id="status">לא נטען עדיין קובץ.</span>
-</div>
+<div class="app-shell">
 
-<div class="container wide" id="emptyState">
-  <section class="card empty-card">
+  <nav class="tabs">
+    <a class="tab" href="index.html#unlock">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 019.9-1"/></svg>
+      פתיחת מכשיר
+    </a>
+    <a class="tab" href="index.html#settings">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/></svg>
+      ברקוד הגדרות
+    </a>
+    <a class="tab" href="index.html#master">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3M16 7l3 3M14 9l2 2"/></svg>
+      סוד-מאסטר
+    </a>
+    <a class="tab" href="index.html#faults">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg>
+      קודי תקלה
+    </a>
+    <span class="tab active">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+      קטלוג אפליקציות
+    </span>
+  </nav>
+
+  <div class="master-bar">
+    <div class="btn-row" style="flex:0 0 auto">
+      <button class="ghost small" id="btnOpen" type="button">פתחו קובץ קטלוג</button>
+      <button class="ghost small" id="btnBuiltIn" type="button">התחילו מהקטלוג המובנה</button>
+    </div>
+    <span class="hint" id="status" style="flex:1;margin:0"></span>
+    <div class="btn-row" style="flex:0 0 auto">
+      <button class="primary small" id="btnSave" type="button" disabled>שמרו</button>
+    </div>
+  </div>
+
+  <section class="card empty-card" id="emptyState">
     <div class="card-head">
       <div class="icon">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
@@ -42,405 +61,370 @@
       <h2>מה יש כאן</h2>
     </div>
     <p class="desc">
-      עמוד זה עורך את <code>admin-tool/filter_catalog.json</code> — מקור האמת היחיד לרשימת האפליקציות
-      החסומות. שלושה מושגים: <strong>קטגוריות</strong> (רשימת אפליקציות בנושא משותף, כמו "רשתות
-      חברתיות"), <strong>פרופילים</strong> (חבילות סינון שהמשתמש בוחר בהקמה — כל פרופיל מורכב
-      מכמה קטגוריות), ו<strong>אפליקציות שמותרות תמיד</strong> (לעולם לא נחסמות).
+      עורכים כאן את <code>admin-tool/filter_catalog.json</code> — הרשימה שממנה האפליקציה יודעת מה לחסום:
     </p>
-    <p class="desc">לחצו "פתחו קובץ קטלוג" למעלה ובחרו את <code>admin-tool/filter_catalog.json</code> כדי להתחיל.</p>
-  </section>
-</div>
-
-<div class="container wide" id="editorRoot" style="display:none">
-
-  <section class="card">
-    <div class="card-head">
-      <div class="icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-      </div>
-      <div class="section-title" style="flex:1">
-        <h2>קטגוריות</h2>
-        <span class="count" id="catCount"></span>
-      </div>
-    </div>
-    <p class="desc">כל קטגוריה היא רשימת אפליקציות (לפי package name) בנושא משותף — למשל "רשתות חברתיות". פרופילים (להלן) מרכיבים את עצמם מקטגוריות.</p>
-    <div class="cat-grid" id="categoriesGrid"></div>
-    <div class="entity-card add-entity-card">
-      <strong style="font-size:13px">הוספת קטגוריה חדשה</strong>
-      <div class="add-row">
-        <input type="text" id="newCatTitle" placeholder="כותרת, למשל: משחקים">
-        <input type="text" id="newCatId" placeholder="מזהה (אנגלית), למשל: games">
-        <button class="primary small" id="btnAddCategory">הוסיפו</button>
-      </div>
-    </div>
+    <ul class="summary">
+      <li><strong>חבילות סינון</strong> — מה שבוחרים בהגדרת המכשיר (בסיסי, מומלץ…). כל חבילה מורכבת מקטגוריות.</li>
+      <li><strong>קטגוריות</strong> — רשימות אפליקציות בנושא משותף, למשל "רשתות חברתיות".</li>
+      <li><strong>מותרות תמיד</strong> — אפליקציות שאף חבילה לא חוסמת.</li>
+    </ul>
+    <p class="desc">פתחו את הקובץ, או התחילו מהקטלוג המובנה ושמרו בסוף קובץ חדש. השינויים נכנסים לאפליקציה בבנייה הבאה.</p>
   </section>
 
-  <section class="card">
-    <div class="card-head">
-      <div class="icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4z"/></svg>
-      </div>
-      <div class="section-title" style="flex:1">
-        <h2>פרופילים (חבילות סינון)</h2>
-        <span class="count" id="profCount"></span>
-      </div>
-    </div>
-    <p class="desc">פרופיל הוא שם שהמשתמש בוחר בהקמה (בסיסי / מומלץ / מחמיר / מותאם אישית), שמרכיב חסימה מתוך קבוצת קטגוריות. שינוי שם המזהה (id) של <code>custom</code> או <code>recommended</code> ידרוש עדכון גם בקוד האפליקציה — מומלץ לא לשנות אותם.</p>
-    <div class="cat-grid" id="profilesGrid"></div>
-    <div class="entity-card add-entity-card">
-      <strong style="font-size:13px">הוספת פרופיל חדש</strong>
-      <div class="add-row">
-        <input type="text" id="newProfTitle" placeholder="כותרת, למשל: למבחנים">
-        <input type="text" id="newProfId" placeholder="מזהה (אנגלית), למשל: exam_mode">
-        <button class="primary small" id="btnAddProfile">הוסיפו</button>
-      </div>
-    </div>
-  </section>
+  <div id="editorRoot" hidden>
+    <nav class="tabs sub-tabs" style="margin-bottom:18px">
+      <button class="tab" data-sub="profiles" type="button">חבילות סינון <span class="badge-count" id="profCount"></span></button>
+      <button class="tab" data-sub="categories" type="button">קטגוריות <span class="badge-count" id="catCount"></span></button>
+      <button class="tab" data-sub="whitelist" type="button">מותרות תמיד <span class="badge-count" id="wlCount"></span></button>
+      <button class="tab" data-sub="json" type="button">JSON</button>
+    </nav>
 
-  <section class="card">
-    <div class="card-head">
-      <div class="icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4z"/></svg>
-      </div>
-      <div class="section-title" style="flex:1">
-        <h2>אפליקציות שמותרות תמיד</h2>
-        <span class="count" id="wlCount"></span>
-      </div>
-    </div>
-    <p class="desc">רשימה זו לא נחסמת אף פעם, גם במצב "מחמיר" עם רשימה לבנה — שמורה לאפליקציות מערכת חיוניות (טלפון, הגדרות וכו').</p>
-    <div class="chips" id="whitelistChips"></div>
-    <div class="add-row">
-      <input type="text" id="newWlPackage" placeholder="com.android.dialer">
-      <button class="primary small" id="btnAddWl">הוסיפו</button>
-    </div>
-  </section>
+    <section class="sub-panel" data-sub-panel="profiles">
+      <p class="lead-note">
+        מה שהמשתמש רואה בבחירת חבילה. סמנו לכל חבילה אילו קטגוריות היא חוסמת. את המזהים
+        <code>custom</code> ו-<code>recommended</code> לא כדאי לשנות — האפליקציה מסתמכת עליהם.
+      </p>
+      <div class="cat-grid" id="profilesGrid"></div>
+    </section>
 
-  <section class="card" id="previewCard" style="display:none">
-    <div class="card-head">
-      <h2>תצוגה מקדימה של ה-JSON שיישמר</h2>
-    </div>
-    <pre class="json-preview" id="jsonPreview"></pre>
-  </section>
+    <section class="sub-panel" data-sub-panel="categories">
+      <div class="add-row" style="margin-bottom:14px">
+        <input type="text" id="catSearch" placeholder="חיפוש אפליקציה או קטגוריה…" autocomplete="off" style="direction:rtl;text-align:right;font-family:inherit">
+      </div>
+      <div class="cat-grid" id="categoriesGrid"></div>
+    </section>
 
+    <section class="sub-panel" data-sub-panel="whitelist">
+      <section class="card">
+        <p class="desc">אפליקציות שלא נחסמות אף פעם, גם בחבילה במצב "רשימה לבנה" — טלפון, הגדרות, מקלדת וכו'.</p>
+        <div id="whitelistEditor"></div>
+      </section>
+    </section>
+
+    <section class="sub-panel" data-sub-panel="json">
+      <section class="card">
+        <p class="desc">כך ייראה הקובץ שיישמר.</p>
+        <pre class="json-preview" id="jsonPreview"></pre>
+      </section>
+    </section>
+  </div>
+
+  <datalist id="appSuggestions"></datalist>
 </div>
 
 <div class="toast" id="toast"></div>
-
 <input type="file" id="fileInput" accept="application/json,.json" style="display:none">
 
 <script>
 let catalog = null;
 let fileHandle = null;
-let previewOpen = false;
+let dirty = false;
+let searchTerm = "";
 
-function showToast(msg) {
-  const t = document.getElementById("toast");
-  t.textContent = msg;
-  t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), 1800);
-}
+const PROTECTED_PROFILE_IDS = ["custom", "recommended"];
 
 function slugify(text) {
   return text.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 }
 
-function setStatus(text) {
-  document.getElementById("status").innerHTML = text;
+function setStatus(html) { $("status").innerHTML = html; }
+
+function markDirty() {
+  dirty = true;
+  $("btnSave").textContent = "שמרו •";
+  refreshPreview();
 }
 
-function el(tag, props = {}, children = []) {
-  const node = document.createElement(tag);
-  Object.entries(props).forEach(([k, v]) => {
-    if (k === "class") node.className = v;
-    else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
-    else node.setAttribute(k, v);
-  });
-  children.forEach((c) => node.appendChild(typeof c === "string" ? document.createTextNode(c) : c));
-  return node;
+window.addEventListener("beforeunload", (e) => {
+  if (dirty) { e.preventDefault(); e.returnValue = ""; }
+});
+
+// ---- sub tabs ----
+function showSub(name) {
+  document.querySelectorAll("[data-sub]").forEach((t) => t.classList.toggle("active", t.dataset.sub === name));
+  document.querySelectorAll("[data-sub-panel]").forEach((p) => { p.hidden = p.dataset.subPanel !== name; });
+  store.set("kg.catalogTab", name);
+}
+document.querySelectorAll("[data-sub]").forEach((t) => t.addEventListener("click", () => showSub(t.dataset.sub)));
+
+// ---- shared pieces ----
+function appChip(pkg, onRemove) {
+  const name = appName(pkg);
+  return el("span", { class: "chip", title: pkg },
+    el("span", { class: name ? "chip-name" : "" }, name || pkg),
+    el("button", { type: "button", title: "הסר", onclick: onRemove }, "×"));
 }
 
-function renderChips(list, onRemove) {
-  const wrap = el("div", { class: "chips" });
-  list.forEach((value, i) => {
-    wrap.appendChild(el("span", { class: "chip" }, [
-      value,
-      el("button", { type: "button", onclick: () => onRemove(i) }, ["×"]),
-    ]));
-  });
+/** Chips + an add box (names or packages, several at once) for one package list. */
+function packageListEditor(list, placeholder) {
+  const wrap = el("div", { class: "pkg-editor" });
+  const chips = el("div", { class: "chips" });
+  const input = el("input", { type: "text", list: "appSuggestions", placeholder, autocomplete: "off" });
+  const render = () => {
+    chips.replaceChildren(...(list.length
+      ? list.map((pkg, i) => appChip(pkg, () => { list.splice(i, 1); render(); markDirty(); renderCounts(); }))
+      : [el("p", { class: "empty-note" }, "אין אפליקציות עדיין.")]));
+  };
+  const add = () => {
+    const { good, bad } = resolveApps(input.value, catalog);
+    let added = 0;
+    good.forEach((p) => { if (!list.includes(p)) { list.push(p); added++; } });
+    input.value = bad.join(", ");
+    if (bad.length) showToast("לא זוהה: " + bad.join(", "));
+    if (added) { render(); markDirty(); renderCounts(); }
+  };
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); add(); } });
+  input.addEventListener("change", () => { if (PACKAGE_RE.test(input.value.trim())) add(); });
+  wrap.append(chips, el("div", { class: "add-row" }, input, el("button", { class: "ghost", type: "button", onclick: add }, "הוסיפו")));
+  render();
   return wrap;
 }
 
-function renderCategoryCard(cat, index) {
-  const card = el("div", { class: "entity-card" });
-
-  const titleInput = el("input", { type: "text" });
-  titleInput.value = cat.title;
-  titleInput.placeholder = "כותרת הקטגוריה";
-  titleInput.addEventListener("input", (e) => { cat.title = e.target.value; });
-  titleInput.addEventListener("blur", renderAll);
-
-  const idInput = el("input", { type: "text", class: "id-input" });
-  idInput.value = cat.id;
-  idInput.placeholder = "מזהה";
-  idInput.addEventListener("input", (e) => { cat.id = slugify(e.target.value); });
-  idInput.addEventListener("blur", renderAll);
-
-  const removeBtn = el("button", { class: "danger", type: "button" }, ["מחקו קטגוריה"]);
-  removeBtn.addEventListener("click", () => {
-    if (!confirm(`למחוק את הקטגוריה "${cat.title}"? היא תוסר גם מכל הפרופילים שמשתמשים בה.`)) return;
-    catalog.categories.splice(index, 1);
-    catalog.profiles.forEach((p) => { p.categoryIds = p.categoryIds.filter((id) => id !== cat.id); });
-    renderAll();
-  });
-
-  card.appendChild(el("div", { class: "row-between" }, [titleInput, removeBtn]));
-  card.appendChild(idInput);
-
-  card.appendChild(renderChips(cat.packages, (i) => {
-    cat.packages.splice(i, 1);
-    renderAll();
-  }));
-
-  const pkgInput = el("input", { type: "text" });
-  pkgInput.placeholder = "com.example.app";
-  const addPkg = () => {
-    const value = pkgInput.value.trim();
-    if (!value) return;
-    if (cat.packages.includes(value)) { showToast("האפליקציה הזו כבר ברשימה"); return; }
-    cat.packages.push(value);
-    pkgInput.value = "";
-    renderAll();
-  };
-  pkgInput.addEventListener("keydown", (e) => { if (e.key === "Enter") addPkg(); });
-  const addBtn = el("button", { class: "primary small", type: "button", onclick: addPkg }, ["הוסיפו"]);
-  card.appendChild(el("div", { class: "add-row" }, [pkgInput, addBtn]));
-
-  return card;
+function textInput(value, placeholder, onInput, extraClass = "") {
+  const input = el("input", { type: "text", placeholder, class: extraClass });
+  input.value = value;
+  input.addEventListener("input", (e) => { onInput(e.target.value); markDirty(); });
+  return input;
 }
 
-function renderProfileCard(prof, index) {
-  const card = el("div", { class: "entity-card" });
+function switchRow(label, checked, onChange) {
+  const box = el("input", { type: "checkbox" });
+  box.checked = checked;
+  box.addEventListener("change", () => { onChange(box.checked); markDirty(); });
+  return el("div", { class: "switch-row" }, el("span", {}, label), el("label", { class: "switch" }, box, el("span", { class: "slider" })));
+}
 
-  const titleInput = el("input", { type: "text" });
-  titleInput.value = prof.title;
-  titleInput.placeholder = "כותרת";
-  titleInput.addEventListener("input", (e) => { prof.title = e.target.value; });
-
-  const removeBtn = el("button", { class: "danger", type: "button" }, ["מחקו פרופיל"]);
-  removeBtn.addEventListener("click", () => {
-    if (!confirm(`למחוק את הפרופיל "${prof.title}"?`)) return;
-    catalog.profiles.splice(index, 1);
-    renderAll();
-  });
-
-  card.appendChild(el("div", { class: "row-between" }, [titleInput, removeBtn]));
-
-  const subtitleInput = el("input", { type: "text" });
-  subtitleInput.value = prof.subtitle;
-  subtitleInput.placeholder = "כתובית (תיאור קצר)";
-  subtitleInput.addEventListener("input", (e) => { prof.subtitle = e.target.value; });
-  card.appendChild(subtitleInput);
-
-  const idInput = el("input", { type: "text", class: "id-input" });
-  idInput.value = prof.id;
-  idInput.placeholder = "מזהה";
-  idInput.addEventListener("input", (e) => { prof.id = slugify(e.target.value); });
-  card.appendChild(idInput);
-
-  const checklist = el("div", { class: "checkbox-list" });
-  if (catalog.categories.length === 0) {
-    checklist.appendChild(el("span", { class: "hint" }, ["אין קטגוריות עדיין"]));
-  }
-  catalog.categories.forEach((cat) => {
-    const checkbox = el("input", { type: "checkbox" });
-    checkbox.checked = prof.categoryIds.includes(cat.id);
-    checkbox.addEventListener("change", () => {
-      if (checkbox.checked) {
-        if (!prof.categoryIds.includes(cat.id)) prof.categoryIds.push(cat.id);
-      } else {
+// ---- profiles ----
+function renderProfiles() {
+  const grid = $("profilesGrid");
+  grid.replaceChildren(...catalog.profiles.map((prof, index) => {
+    const protectedId = PROTECTED_PROFILE_IDS.includes(prof.id);
+    const pills = el("div", { class: "pill-toggles" }, ...catalog.categories.map((cat) => {
+      const box = el("input", { type: "checkbox", checked: prof.categoryIds.includes(cat.id) });
+      box.addEventListener("change", () => {
         prof.categoryIds = prof.categoryIds.filter((id) => id !== cat.id);
-      }
-      refreshPreview();
-    });
-    checklist.appendChild(el("label", {}, [checkbox, cat.title]));
+        if (box.checked) prof.categoryIds.push(cat.id);
+        markDirty();
+        renderProfileTotals();
+      });
+      return el("label", { class: "pill-toggle", title: `${cat.packages.length} אפליקציות` }, box, cat.title);
+    }));
+    return el("div", { class: "entity-card" },
+      el("div", { class: "row-between" },
+        textInput(prof.title, "שם החבילה", (v) => { prof.title = v; }, "title-input"),
+        el("button", {
+          class: "danger", type: "button",
+          onclick: () => {
+            if (!confirm(`למחוק את החבילה "${prof.title}"?`)) return;
+            catalog.profiles.splice(index, 1);
+            markDirty();
+            renderAll();
+          },
+        }, "מחיקה")),
+      textInput(prof.subtitle || "", "תיאור קצר שיוצג למשתמש", (v) => { prof.subtitle = v; }, "rtl-input"),
+      el("label", { class: "mini-label" }, "חוסמת את הקטגוריות:"),
+      pills,
+      el("p", { class: "empty-note profile-total", "data-index": index }),
+      switchRow("חסימת כל המשחקים", !!prof.blockAllGames, (v) => { prof.blockAllGames = v; }),
+      switchRow("רשימה לבנה — הכל חסום חוץ מ\"מותרות תמיד\"", !!prof.whitelistMode, (v) => { prof.whitelistMode = v; }),
+      el("details", { class: "fold" },
+        el("summary", {}, "מזהה טכני"),
+        textInput(prof.id, "מזהה באנגלית", (v) => { prof.id = slugify(v); }, "id-input"),
+        protectedId ? el("p", { class: "empty-note", style: "color:var(--danger)" }, "האפליקציה מסתמכת על המזהה הזה — לא לשנות.") : ""));
+  }), addEntityCard("חבילה חדשה", "למשל: לתקופת מבחנים", (title) => {
+    const id = uniqueId(slugify(title) || "profile", catalog.profiles);
+    catalog.profiles.push({ id, title, subtitle: "", categoryIds: [], blockAllGames: false, whitelistMode: false });
+  }));
+  renderProfileTotals();
+}
+
+function renderProfileTotals() {
+  document.querySelectorAll(".profile-total").forEach((p) => {
+    const prof = catalog.profiles[Number(p.dataset.index)];
+    if (!prof) return;
+    const pkgs = new Set();
+    catalog.categories.filter((c) => prof.categoryIds.includes(c.id)).forEach((c) => c.packages.forEach((x) => pkgs.add(x)));
+    p.textContent = prof.whitelistMode ? "חוסמת הכל חוץ מהמותרות תמיד." : `סה"כ ${pkgs.size} אפליקציות חסומות${prof.blockAllGames ? " + כל המשחקים" : ""}.`;
   });
-  card.appendChild(checklist);
+}
 
-  const gamesSwitch = el("input", { type: "checkbox" });
-  gamesSwitch.checked = prof.blockAllGames;
-  gamesSwitch.addEventListener("change", () => { prof.blockAllGames = gamesSwitch.checked; refreshPreview(); });
-  card.appendChild(el("div", { class: "switch-row" }, [
-    el("span", {}, ["חסום את כל המשחקים"]),
-    el("label", { class: "switch" }, [gamesSwitch, el("span", { class: "slider" })]),
-  ]));
+// ---- categories ----
+function renderCategories() {
+  const term = searchTerm.trim().toLowerCase();
+  const matches = (cat) => !term || cat.title.toLowerCase().includes(term) || cat.id.includes(term) ||
+    cat.packages.some((p) => p.toLowerCase().includes(term) || (appName(p) || "").toLowerCase().includes(term));
+  const cards = catalog.categories.map((cat, index) => {
+    if (!matches(cat)) return null;
+    const usedBy = catalog.profiles.filter((p) => p.categoryIds.includes(cat.id)).map((p) => p.title);
+    return el("div", { class: "entity-card" },
+      el("div", { class: "row-between" },
+        textInput(cat.title, "שם הקטגוריה", (v) => { cat.title = v; }, "title-input"),
+        el("button", {
+          class: "danger", type: "button",
+          onclick: () => {
+            if (!confirm(`למחוק את הקטגוריה "${cat.title}"? היא תוסר גם מכל החבילות.`)) return;
+            catalog.categories.splice(index, 1);
+            catalog.profiles.forEach((p) => { p.categoryIds = p.categoryIds.filter((id) => id !== cat.id); });
+            markDirty();
+            renderAll();
+          },
+        }, "מחיקה")),
+      el("p", { class: "empty-note" }, usedBy.length ? `בשימוש ב: ${usedBy.join(", ")}` : "לא בשימוש באף חבילה."),
+      packageListEditor(cat.packages, "שם או package, למשל Instagram"),
+      el("details", { class: "fold" },
+        el("summary", {}, "מזהה טכני"),
+        textInput(cat.id, "מזהה באנגלית", (v) => {
+          const old = cat.id;
+          cat.id = slugify(v);
+          catalog.profiles.forEach((p) => { p.categoryIds = p.categoryIds.map((id) => (id === old ? cat.id : id)); });
+        }, "id-input")));
+  }).filter(Boolean);
+  if (!cards.length) cards.push(el("p", { class: "empty-note", style: "color:#cbd5e1" }, "לא נמצאו קטגוריות מתאימות."));
+  $("categoriesGrid").replaceChildren(...cards, addEntityCard("קטגוריה חדשה", "למשל: משחקים", (title) => {
+    const id = uniqueId(slugify(title) || "category", catalog.categories);
+    catalog.categories.push({ id, title, packages: [] });
+  }));
+}
 
-  const wlSwitch = el("input", { type: "checkbox" });
-  wlSwitch.checked = prof.whitelistMode;
-  wlSwitch.addEventListener("change", () => { prof.whitelistMode = wlSwitch.checked; refreshPreview(); });
-  card.appendChild(el("div", { class: "switch-row" }, [
-    el("span", {}, ["מצב רשימה לבנה (הכל חסום חוץ מהמותר)"]),
-    el("label", { class: "switch" }, [wlSwitch, el("span", { class: "slider" })]),
-  ]));
+$("catSearch").addEventListener("input", (e) => { searchTerm = e.target.value; renderCategories(); });
 
-  return card;
+function uniqueId(base, list) {
+  let id = base, n = 2;
+  while (list.some((x) => x.id === id)) id = `${base}_${n++}`;
+  return id;
+}
+
+function addEntityCard(title, placeholder, onAdd) {
+  const input = el("input", { type: "text", placeholder, class: "rtl-input" });
+  const add = () => {
+    const value = input.value.trim();
+    if (!value) { input.focus(); return; }
+    onAdd(value);
+    markDirty();
+    renderAll();
+  };
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") add(); });
+  return el("div", { class: "entity-card add-entity-card" },
+    el("strong", { style: "font-size:14px" }, "+ " + title),
+    el("div", { class: "add-row" }, input, el("button", { class: "primary small", type: "button", onclick: add }, "הוספה")));
+}
+
+// ---- whitelist / counts / json ----
+function renderWhitelist() {
+  $("whitelistEditor").replaceChildren(packageListEditor(catalog.whitelistDefaults, "שם או package, למשל com.android.dialer"));
+}
+
+function renderCounts() {
+  $("profCount").textContent = catalog.profiles.length;
+  $("catCount").textContent = catalog.categories.length;
+  $("wlCount").textContent = catalog.whitelistDefaults.length;
+}
+
+function refreshPreview() {
+  if (catalog) $("jsonPreview").textContent = JSON.stringify(catalog, null, 2);
 }
 
 function renderAll() {
   if (!catalog) return;
-
-  document.getElementById("catCount").textContent = `${catalog.categories.length} קטגוריות`;
-  document.getElementById("profCount").textContent = `${catalog.profiles.length} פרופילים`;
-  document.getElementById("wlCount").textContent = `${catalog.whitelistDefaults.length} אפליקציות`;
-
-  const catGrid = document.getElementById("categoriesGrid");
-  catGrid.innerHTML = "";
-  catalog.categories.forEach((cat, i) => catGrid.appendChild(renderCategoryCard(cat, i)));
-
-  const profGrid = document.getElementById("profilesGrid");
-  profGrid.innerHTML = "";
-  catalog.profiles.forEach((prof, i) => profGrid.appendChild(renderProfileCard(prof, i)));
-
-  const wlChips = document.getElementById("whitelistChips");
-  wlChips.innerHTML = "";
-  wlChips.appendChild(renderChips(catalog.whitelistDefaults, (i) => {
-    catalog.whitelistDefaults.splice(i, 1);
-    renderAll();
-  }));
-
+  renderAppSuggestions($("appSuggestions"), catalog);
+  renderCounts();
+  renderProfiles();
+  renderCategories();
+  renderWhitelist();
   refreshPreview();
-}
-
-function refreshPreview() {
-  if (!catalog) return;
-  document.getElementById("jsonPreview").textContent = JSON.stringify(catalog, null, 2);
 }
 
 function validate() {
   const catIds = catalog.categories.map((c) => c.id);
   const profIds = catalog.profiles.map((p) => p.id);
-  if (catIds.some((id) => !id)) return "לכל קטגוריה צריך מזהה (id) שאינו ריק.";
-  if (new Set(catIds).size !== catIds.length) return "יש קטגוריות עם מזהה (id) כפול.";
-  if (profIds.some((id) => !id)) return "לכל פרופיל צריך מזהה (id) שאינו ריק.";
-  if (new Set(profIds).size !== profIds.length) return "יש פרופילים עם מזהה (id) כפול.";
-  if (catalog.categories.some((c) => !c.title.trim())) return "לכל קטגוריה צריכה להיות כותרת.";
-  if (catalog.profiles.some((p) => !p.title.trim())) return "לכל פרופיל צריכה להיות כותרת.";
+  if (catIds.some((id) => !id)) return "לכל קטגוריה צריך מזהה.";
+  if (new Set(catIds).size !== catIds.length) return "יש שתי קטגוריות עם אותו מזהה.";
+  if (profIds.some((id) => !id)) return "לכל חבילה צריך מזהה.";
+  if (new Set(profIds).size !== profIds.length) return "יש שתי חבילות עם אותו מזהה.";
+  if (catalog.categories.some((c) => !c.title.trim())) return "לכל קטגוריה צריך שם.";
+  if (catalog.profiles.some((p) => !p.title.trim())) return "לכל חבילה צריך שם.";
   return null;
 }
 
 function loadCatalog(parsed) {
+  if (!Array.isArray(parsed.profiles) || !Array.isArray(parsed.categories)) throw new Error("מבנה קובץ לא צפוי");
+  parsed.whitelistDefaults = parsed.whitelistDefaults || [];
   catalog = parsed;
-  document.getElementById("emptyState").style.display = "none";
-  document.getElementById("editorRoot").style.display = "";
-  document.getElementById("btnSave").disabled = false;
-  document.getElementById("btnTogglePreview").disabled = false;
+  dirty = false;
+  $("btnSave").textContent = "שמרו";
+  $("emptyState").hidden = true;
+  $("editorRoot").hidden = false;
+  $("btnSave").disabled = false;
   renderAll();
+  showSub(store.get("kg.catalogTab", "profiles"));
 }
 
-document.getElementById("btnOpen").addEventListener("click", async () => {
+// ---- open / save ----
+$("btnOpen").addEventListener("click", async () => {
+  if (dirty && !confirm("יש שינויים שלא נשמרו. לפתוח קובץ אחר?")) return;
   if (window.showOpenFilePicker) {
     try {
-      const [handle] = await window.showOpenFilePicker({
-        types: [{ description: "JSON", accept: { "application/json": [".json"] } }],
-      });
+      const [handle] = await window.showOpenFilePicker({ types: [{ description: "JSON", accept: { "application/json": [".json"] } }] });
       const file = await handle.getFile();
-      const text = await file.text();
-      loadCatalog(JSON.parse(text));
+      loadCatalog(JSON.parse(await file.text()));
       fileHandle = handle;
-      setStatus(`נטען: <strong>${file.name}</strong> — שמירה תכתוב ישירות לקובץ הזה.`);
+      setStatus(`פתוח: <strong>${file.name}</strong> — "שמרו" כותב ישירות לקובץ.`);
     } catch (err) {
       if (err.name !== "AbortError") showToast("שגיאה בטעינת הקובץ: " + err.message);
     }
   } else {
-    document.getElementById("fileInput").click();
+    $("fileInput").click();
   }
 });
 
-document.getElementById("fileInput").addEventListener("change", async (e) => {
+$("fileInput").addEventListener("change", async (e) => {
   const file = e.target.files[0];
   if (!file) return;
   try {
-    const text = await file.text();
-    loadCatalog(JSON.parse(text));
+    loadCatalog(JSON.parse(await file.text()));
     fileHandle = null;
-    setStatus(`נטען: <strong>${file.name}</strong>. הדפדפן הזה לא תומך בשמירה ישירה — לחיצה על "שמרו" תוריד קובץ מעודכן שתצטרכו להחליף ידנית.`);
+    setStatus(`פתוח: <strong>${file.name}</strong> — "שמרו" יוריד קובץ מעודכן להחלפה ידנית.`);
   } catch (err) {
     showToast("שגיאה בקריאת הקובץ: " + err.message);
   }
 });
 
-document.getElementById("btnSave").addEventListener("click", async () => {
+$("btnBuiltIn").addEventListener("click", () => {
+  if (dirty && !confirm("יש שינויים שלא נשמרו. להתחיל מחדש מהקטלוג המובנה?")) return;
+  loadCatalog(JSON.parse(JSON.stringify(DEFAULT_CATALOG)));
+  fileHandle = null;
+  setStatus('עובדים על הקטלוג המובנה — "שמרו" יוריד קובץ <strong>filter_catalog.json</strong>.');
+});
+
+$("btnSave").addEventListener("click", async () => {
   const error = validate();
   if (error) { showToast(error); return; }
-
   const json = JSON.stringify(catalog, null, 2) + "\n";
-
+  // The settings-QR builder (index.html) picks up the edited packages/categories from here.
+  store.set("kg.catalog", catalog);
   if (fileHandle) {
     try {
       const writable = await fileHandle.createWritable();
       await writable.write(json);
       await writable.close();
-      showToast("נשמר בהצלחה");
+      showToast("נשמר");
     } catch (err) {
       showToast("שגיאה בשמירה: " + err.message);
+      return;
     }
   } else {
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
+    a.href = URL.createObjectURL(new Blob([json], { type: "application/json" }));
     a.download = "filter_catalog.json";
-    document.body.appendChild(a);
     a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(a.href);
     showToast("הקובץ הורד — החליפו בו את admin-tool/filter_catalog.json");
   }
+  dirty = false;
+  $("btnSave").textContent = "שמרו";
 });
 
-document.getElementById("btnTogglePreview").addEventListener("click", () => {
-  previewOpen = !previewOpen;
-  document.getElementById("previewCard").style.display = previewOpen ? "" : "none";
-  document.getElementById("btnTogglePreview").textContent = previewOpen ? "הסתר JSON" : "הצג JSON";
-});
-
-document.getElementById("btnAddCategory").addEventListener("click", () => {
-  const titleInput = document.getElementById("newCatTitle");
-  const idInput = document.getElementById("newCatId");
-  const title = titleInput.value.trim();
-  const id = slugify(idInput.value) || slugify(title);
-  if (!title || !id) { showToast("צריך כותרת ומזהה לקטגוריה החדשה"); return; }
-  if (catalog.categories.some((c) => c.id === id)) { showToast("מזהה הקטגוריה הזה תפוס"); return; }
-  catalog.categories.push({ id, title, packages: [] });
-  titleInput.value = "";
-  idInput.value = "";
-  renderAll();
-});
-
-document.getElementById("btnAddProfile").addEventListener("click", () => {
-  const titleInput = document.getElementById("newProfTitle");
-  const idInput = document.getElementById("newProfId");
-  const title = titleInput.value.trim();
-  const id = slugify(idInput.value) || slugify(title);
-  if (!title || !id) { showToast("צריך כותרת ומזהה לפרופיל החדש"); return; }
-  if (catalog.profiles.some((p) => p.id === id)) { showToast("מזהה הפרופיל הזה תפוס"); return; }
-  catalog.profiles.push({ id, title, subtitle: "", categoryIds: [], blockAllGames: false, whitelistMode: false });
-  titleInput.value = "";
-  idInput.value = "";
-  renderAll();
-});
-
-document.getElementById("btnAddWl").addEventListener("click", () => {
-  const input = document.getElementById("newWlPackage");
-  const value = input.value.trim();
-  if (!value) return;
-  if (catalog.whitelistDefaults.includes(value)) { showToast("האפליקציה הזו כבר ברשימה"); return; }
-  catalog.whitelistDefaults.push(value);
-  input.value = "";
-  renderAll();
-});
-document.getElementById("newWlPackage").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") document.getElementById("btnAddWl").click();
-});
+setStatus("לא נפתח קובץ.");
 </script>
 
 </body>
