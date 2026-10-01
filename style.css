@@ -110,6 +110,27 @@ input[type="text"]:focus, input[type="password"]:focus {
 }
 .field { margin-bottom: 4px; }
 
+textarea, input[type="time"], input[type="number"], select {
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1.5px solid #e2e8f0;
+  font-size: 14px;
+  background: #f8fafc;
+  transition: border-color .15s;
+}
+textarea { font-family: "Consolas", monospace; direction: ltr; text-align: left; resize: vertical; }
+input[type="time"], input[type="number"] { direction: ltr; text-align: left; font-family: "Consolas", monospace; }
+select { cursor: pointer; }
+textarea:focus, input[type="time"]:focus, input[type="number"]:focus, select:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: #fff;
+}
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.divider { border: none; border-top: 1.5px solid #e2e8f0; margin: 4px 0; }
+
 button {
   border: none;
   border-radius: 10px;
@@ -207,11 +228,16 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  background: rgba(255,255,255,0.06);
+  background: rgba(30,41,59,0.92);
+  backdrop-filter: blur(6px);
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: var(--radius);
   padding: 14px 18px;
+  position: sticky;
+  top: 12px;
+  z-index: 10;
 }
+.toolbar button svg { flex-shrink: 0; }
 .toolbar .status { color: #cbd5e1; font-size: 13px; flex: 1; min-width: 200px; }
 .toolbar .status strong { color: #fff; }
 
@@ -317,6 +343,19 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .add-entity-card {
   background: #fff;
   border: 1.5px dashed #cbd5e1;
+}
+
+.empty-card {
+  border: 1.5px dashed rgba(37,99,235,0.35);
+}
+.empty-card code {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  direction: ltr;
+  display: inline-block;
 }
 
 pre.json-preview {
