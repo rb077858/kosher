@@ -160,10 +160,21 @@
             <span>חסימת Google Play — מתקינים רק מהחנות הכשרה</span>
             <label class="switch"><input type="checkbox" id="setBlockPlayStore"><span class="slider"></span></label>
           </div>
-          <div class="field">
-            <label for="setStoreText">החנות הכשרה — הדביקו כאן את טקסט החנות (לא חובה)</label>
-            <textarea id="setStoreText" rows="2" placeholder="KGSTORE1:..."></textarea>
-            <p class="hint" id="storeTextHint" style="margin:4px 0 0">את טקסט החנות מקבלים בלשונית "החנות הכשרה".</p>
+          <div class="sub-block">
+            <h3>החנות הכשרה</h3>
+            <div class="segmented three" id="storeActionSwitch">
+              <button type="button" data-store="none">ללא שינוי<small>החנות במכשיר נשארת כמו שהיא.</small></button>
+              <button type="button" data-store="set">הפעלה או עדכון<small>מדביקים את טקסט החנות.</small></button>
+              <button type="button" data-store="remove">הסרה מהמכשיר<small>מוחק את החנות ואת הסמל שלה. אפליקציות שהותקנו נשארות.</small></button>
+            </div>
+            <div class="field" id="storeTextBlock">
+              <label for="setStoreText">טקסט החנות</label>
+              <textarea id="setStoreText" rows="2" placeholder="KGSTORE1:..."></textarea>
+              <p class="hint" id="storeTextHint" style="margin:4px 0 0">את טקסט החנות מקבלים בלשונית "החנות הכשרה".</p>
+            </div>
+            <p class="hint" id="storeRemoveHint" style="margin:0">
+              אם "חסימת Google Play" פעילה, היא נשארת — ובמכשיר לא תהיה דרך להתקין אפליקציות עד שתפעילו חנות שוב או תכבו את החסימה.
+            </p>
           </div>
           <div class="sub-block">
             <h3>קטגוריות נוספות לחסימה</h3>
@@ -356,10 +367,11 @@
             שלכם יכולים לקרוא אותם.
           </p>
           <button class="primary" id="btnBuildStore" type="button">סיום הגדרת חנות</button>
+          <button class="ghost" id="btnBuildStoreRemoval" type="button">ברקוד הסרת חנות מהמכשיר</button>
           <ul class="issues" id="storeIssues"></ul>
           <div class="qr-box" id="storeQrWrap"></div>
           <div id="storeResult" hidden>
-            <label>טקסט החנות — להדבקה בברקוד הגדרות</label>
+            <label id="storeResultLabel">טקסט החנות — להדבקה בברקוד הגדרות</label>
             <div class="copy-row">
               <div class="code-display small store-text" id="storeText" style="flex:1"></div>
             </div>
@@ -704,12 +716,15 @@ function defaultState() {
     essential: [],
     blockPlayStore: false,
     storeText: "",
+    storeAction: "none", // "none" | "set" | "remove"
     qrKind: "permanent", // "permanent" | "temporary" | "revert"
     untilLocal: "", // <input type="datetime-local"> value, the admin's local time
   };
 }
 
 let state = Object.assign(defaultState(), store.get(DRAFT_KEY, {}));
+// Drafts saved before the store had its own choice: a pasted store text meant "set".
+if (!("storeAction" in store.get(DRAFT_KEY, {})) && state.storeText) state.storeAction = "set";
 
 /** A chip list editor bound to state[key] (an array of package names). */
 function chipEditor(containerId, key, placeholder) {
@@ -827,6 +842,18 @@ document.querySelectorAll("#modeSwitch button").forEach((b) => b.addEventListene
   refreshSettings();
 }));
 
+function renderStoreAction() {
+  document.querySelectorAll("#storeActionSwitch button").forEach((b) => b.classList.toggle("active", b.dataset.store === state.storeAction));
+  $("storeTextBlock").hidden = state.storeAction !== "set";
+  $("storeRemoveHint").hidden = state.storeAction !== "remove";
+}
+
+document.querySelectorAll("#storeActionSwitch button").forEach((b) => b.addEventListener("click", () => {
+  state.storeAction = b.dataset.store;
+  renderStoreAction();
+  refreshSettings();
+}));
+
 function renderKind() {
   document.querySelectorAll("#kindSwitch button").forEach((b) => b.classList.toggle("active", b.dataset.kind === state.qrKind));
   $("untilBlock").hidden = state.qrKind === "permanent";
@@ -904,6 +931,7 @@ document.querySelectorAll("#dailyQuickPicks button").forEach((b) => b.addEventLi
 
 function renderAllForm() {
   renderKind();
+  renderStoreAction();
   renderProfiles();
   renderCategories();
   renderMode();
@@ -952,7 +980,8 @@ function buildSettings() {
   };
   if (state.essential.length) settings.essentialAppPackages = state.essential;
   settings.blockPlayStore = state.blockPlayStore;
-  if (state.storeText.trim()) settings.kosherStore = state.storeText.trim();
+  if (state.storeAction === "set" && state.storeText.trim()) settings.kosherStore = state.storeText.trim();
+  if (state.storeAction === "remove") settings.removeKosherStore = true;
   return settings;
 }
 
@@ -966,7 +995,8 @@ function validate() {
     else if (until <= Date.now() + 60_000) issues.push("מועד התוקף צריך להיות בעתיד.");
   }
   if (state.qrKind === "revert") return issues;
-  if (storeTextStatus === "bad") issues.push("טקסט החנות לא תקין, או שנוצר עם סוד-מאסטר אחר.");
+  if (state.storeAction === "set" && !state.storeText.trim()) issues.push("הדביקו את טקסט החנות, או בחרו \"ללא שינוי\".");
+  if (state.storeAction === "set" && storeTextStatus === "bad") issues.push("טקסט החנות לא תקין, או שנוצר עם סוד-מאסטר אחר.");
   if (state.timeLimitMode === "blacklist" && !state.blacklist.length) issues.push("ברשימה שחורה צריך לפחות אפליקציה אחת.");
   if (state.dailyLimitEnabled && !(state.dailyLimitMinutes >= 1 && state.dailyLimitMinutes <= 1440)) issues.push("מספר הדקות היומי צריך להיות בין 1 ל-1440.");
   if (state.downtimeEnabled && state.downtimeStart === state.downtimeEnd) issues.push("שעת ההתחלה והסיום של ההשבתה זהות.");
@@ -1019,6 +1049,7 @@ function refreshSettings() {
     lines = summaryLines(settings);
     if (settings.blockPlayStore) lines.push("Google Play חסומה — התקנה רק מהחנות הכשרה");
     if (settings.kosherStore && storeTextStatus === "ok") lines.push(`החנות הכשרה: ${storeTextAppCount} אפליקציות`);
+    if (settings.removeKosherStore) lines.push("החנות הכשרה תוסר מהמכשיר");
     if (state.qrKind === "temporary" && until) lines.unshift(`זמני — עד ${formatDateTime(until)}, ואז חזרה להגדרות הקודמות`);
   }
   $("summary").replaceChildren(...lines.map((l) => el("li", {}, l)));
@@ -1058,7 +1089,8 @@ $("btnImport").addEventListener("click", () => {
   if ("profileId" in s) next.profileId = s.profileId;
   if ("filteringEnabled" in s) next.filteringEnabled = s.filteringEnabled;
   if ("blockPlayStore" in s) next.blockPlayStore = s.blockPlayStore;
-  if (s.kosherStore) next.storeText = s.kosherStore;
+  if (s.kosherStore) { next.storeText = s.kosherStore; next.storeAction = "set"; }
+  if (s.removeKosherStore) next.storeAction = "remove";
   if (s.customCategoryIds) next.customCategoryIds = s.customCategoryIds;
   if (s.customAppPackages) next.customAppPackages = s.customAppPackages;
   const limited = s.timeLimitedAppPackages || [];
@@ -1321,7 +1353,23 @@ $("btnBuildStore").addEventListener("click", async () => {
   $("storeIssues").replaceChildren(...issues.map((t) => el("li", {}, t)));
   if (issues.length) return;
   const text = await encryptStore(JSON.stringify({ v: 1, apps: storeApps }), masterBytes());
+  showStoreCode(text, "טקסט החנות — להדבקה בברקוד הגדרות");
+});
+
+// A store code that removes the store from the device when scanned there.
+$("btnBuildStoreRemoval").addEventListener("click", async () => {
+  if (!masterValid()) {
+    $("storeIssues").replaceChildren(el("li", {}, "הזינו סוד-מאסטר תקין בשורה למעלה."));
+    return;
+  }
+  $("storeIssues").replaceChildren();
+  const text = await encryptStore(JSON.stringify({ v: 1, remove: true }), masterBytes());
+  showStoreCode(text, "ברקוד הסרת החנות — סריקה שלו במכשיר מוחקת את החנות ואת הסמל שלה");
+});
+
+function showStoreCode(text, label) {
   lastStoreText = text;
+  $("storeResultLabel").textContent = label;
   $("storeText").textContent = text;
   $("storeResult").hidden = false;
   try {
@@ -1330,7 +1378,7 @@ $("btnBuildStore").addEventListener("click", async () => {
     $("storeQrWrap").replaceChildren();
     $("storeIssues").replaceChildren(el("li", {}, `החנות גדולה מדי לברקוד אחד (${text.length} תווים). אפשר עדיין להדביק את הטקסט בברקוד הגדרות, או להסיר לוגואים של אפליקציות APK.`));
   }
-});
+}
 $("btnCopyStore").addEventListener("click", () => copyText(lastStoreText));
 $("btnDownloadStoreQr").addEventListener("click", () => downloadQr(lastStoreText, "kosherguard-store.png"));
 $("btnPrintStore").addEventListener("click", () => window.print());
