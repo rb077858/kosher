@@ -161,6 +161,24 @@
             <label class="switch"><input type="checkbox" id="setBlockPlayStore"><span class="slider"></span></label>
           </div>
           <div class="sub-block">
+            <div class="switch-row">
+              <h3>סינון תוכן באינטרנט (VPN)</h3>
+              <label class="switch"><input type="checkbox" id="setVpnEnabled"><span class="slider"></span></label>
+            </div>
+            <p class="hint" style="margin:0">
+              מפעיל VPN מקומי במכשיר שמעביר את בקשות ה-DNS דרך שרת סינון (NextDNS) — חוסם תוכן לא ראוי,
+              פרסומות ועוד. בפעם הראשונה המכשיר יבקש לאשר את ה-VPN.
+            </p>
+            <div id="blockedDomainsBlock">
+              <label for="setBlockedDomains">אתרים לחסימה — כתובת אחת בכל שורה (לא חובה)</label>
+              <textarea id="setBlockedDomains" rows="3" placeholder="example.com"></textarea>
+              <div class="quick-picks" style="margin-top:6px">
+                <button type="button" id="btnBlockAdmin">חסימת אתר הניהול (kosher.reembir.com)</button>
+              </div>
+              <p class="hint" style="margin:6px 0 0">כניסה לאתר חסום תועבר ל-blockpage.reembir.com, שם אפשר לבקש פתיחה זמנית מהמנהל.</p>
+            </div>
+          </div>
+          <div class="sub-block">
             <h3>החנות הכשרה</h3>
             <div class="segmented three" id="storeActionSwitch">
               <button type="button" data-store="none">ללא שינוי<small>החנות במכשיר נשארת כמו שהיא.</small></button>
@@ -789,6 +807,8 @@ function defaultState() {
     dailyLimitMinutes: 60,
     essential: [],
     blockPlayStore: false,
+    vpnEnabled: false,
+    blockedDomains: "",
     storeText: "",
     storeAction: "none", // "none" | "set" | "remove"
     qrKind: "permanent", // "permanent" | "temporary" | "revert"
@@ -977,6 +997,25 @@ function formatDateTime(ms) {
   return new Date(ms).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+/** One hostname per line → cleaned, de-duped list (strips scheme/path, lowercases). */
+function normalizeDomains(text) {
+  const seen = new Set();
+  text.split(/[\n,\s]+/).forEach((raw) => {
+    let d = raw.trim().toLowerCase().replace(/^https?:\/\//, "").split("/")[0].split(":")[0].replace(/^\.+|\.+$/g, "");
+    if (d.includes(".") && !d.includes(" ")) seen.add(d);
+  });
+  return [...seen];
+}
+
+$("btnBlockAdmin").addEventListener("click", () => {
+  const list = state.blockedDomains.trim();
+  if (!normalizeDomains(list).includes("kosher.reembir.com")) {
+    state.blockedDomains = (list ? list + "\n" : "") + "kosher.reembir.com";
+    $("setBlockedDomains").value = state.blockedDomains;
+    refreshSettings();
+  }
+});
+
 function bindSimpleFields() {
   const bind = (id, key, prop = "value", parse = (v) => v) => {
     const node = $(id);
@@ -985,6 +1024,8 @@ function bindSimpleFields() {
   };
   bind("setFilteringEnabled", "filteringEnabled", "checked");
   bind("setBlockPlayStore", "blockPlayStore", "checked");
+  bind("setVpnEnabled", "vpnEnabled", "checked");
+  bind("setBlockedDomains", "blockedDomains");
   bind("setDowntimeEnabled", "downtimeEnabled", "checked");
   bind("setDowntimeStart", "downtimeStart");
   bind("setDowntimeEnd", "downtimeEnd");
@@ -1015,6 +1056,8 @@ function renderAllForm() {
   editors.essential = chipEditor("essentialEditor", "essential", "package, למשל com.android.dialer");
   $("setFilteringEnabled").checked = state.filteringEnabled;
   $("setBlockPlayStore").checked = state.blockPlayStore;
+  $("setVpnEnabled").checked = state.vpnEnabled;
+  $("setBlockedDomains").value = state.blockedDomains;
   $("setStoreText").value = state.storeText;
   $("setDowntimeEnabled").checked = state.downtimeEnabled;
   $("setDowntimeStart").value = state.downtimeStart;
@@ -1054,6 +1097,9 @@ function buildSettings() {
   };
   if (state.essential.length) settings.essentialAppPackages = state.essential;
   settings.blockPlayStore = state.blockPlayStore;
+  settings.vpnEnabled = state.vpnEnabled;
+  const domains = normalizeDomains(state.blockedDomains);
+  if (domains.length) settings.blockedDomains = domains;
   if (state.storeAction === "set" && state.storeText.trim()) settings.kosherStore = state.storeText.trim();
   if (state.storeAction === "remove") settings.removeKosherStore = true;
   return settings;
@@ -1122,6 +1168,8 @@ function refreshSettings() {
   } else {
     lines = summaryLines(settings);
     if (settings.blockPlayStore) lines.push("Google Play חסומה — התקנה רק מהחנות הכשרה");
+    if (settings.vpnEnabled) lines.push("סינון תוכן (VPN) דרך NextDNS מופעל");
+    if (settings.blockedDomains) lines.push(`אתרים חסומים: ${settings.blockedDomains.length}`);
     if (settings.kosherStore && storeTextStatus === "ok") lines.push(`החנות הכשרה: ${storeTextAppCount} אפליקציות`);
     if (settings.removeKosherStore) lines.push("החנות הכשרה תוסר מהמכשיר");
     if (state.qrKind === "temporary" && until) lines.unshift(`זמני — עד ${formatDateTime(until)}, ואז חזרה להגדרות הקודמות`);
@@ -1163,6 +1211,8 @@ $("btnImport").addEventListener("click", () => {
   if ("profileId" in s) next.profileId = s.profileId;
   if ("filteringEnabled" in s) next.filteringEnabled = s.filteringEnabled;
   if ("blockPlayStore" in s) next.blockPlayStore = s.blockPlayStore;
+  if ("vpnEnabled" in s) next.vpnEnabled = s.vpnEnabled;
+  if (s.blockedDomains) next.blockedDomains = s.blockedDomains.join("\n");
   if (s.kosherStore) { next.storeText = s.kosherStore; next.storeAction = "set"; }
   if (s.removeKosherStore) next.storeAction = "remove";
   if (s.customCategoryIds) next.customCategoryIds = s.customCategoryIds;

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>אתר חסום — מסנן כשר</title>
+<style>
+  :root { --bg1:#0f172a; --bg2:#1e293b; --accent:#1b6b34; --accent2:#39656b; --card:#ffffff; --text:#0f172a; --muted:#64748b; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: "Segoe UI", "Arial Hebrew", Arial, sans-serif;
+    background: linear-gradient(160deg, var(--bg1), var(--bg2) 60%, #334155);
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+  }
+  .card {
+    background: var(--card); color: var(--text);
+    max-width: 440px; width: 100%;
+    border-radius: 22px; padding: 36px 30px;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.5); text-align: center;
+  }
+  .badge {
+    width: 84px; height: 84px; margin: 0 auto 18px;
+    border-radius: 24px; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+  }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  .site { direction: ltr; font-family: "Consolas", monospace; font-weight: 700; color: var(--accent); word-break: break-all; font-size: 18px; margin: 4px 0 18px; }
+  p { color: var(--muted); font-size: 15px; line-height: 1.6; margin: 0 0 22px; }
+  .btn {
+    display: block; width: 100%; border: none; cursor: pointer;
+    background: var(--accent); color: #fff; font-size: 16px; font-weight: 700;
+    padding: 15px; border-radius: 12px; text-decoration: none; margin-bottom: 10px;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .hint { font-size: 13px; color: var(--muted); margin: 14px 0 0; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4z"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+    </div>
+    <h1>האתר חסום</h1>
+    <div class="site" id="site"></div>
+    <p>הכניסה לאתר הזה נחסמה על ידי מסנן כשר. אפשר לבקש מהמנהל פתיחה זמנית.</p>
+    <a class="btn" id="unlockBtn" href="#">בקשת פתיחה זמנית מהמנהל</a>
+    <p class="hint">
+      הכפתור פותח את אפליקציית מסנן כשר, שם יוצג שם המכשיר וקוד לאישור המנהל. אם הכפתור לא עובד,
+      פתחו את האפליקציה ידנית ← "סינון תוכן" ← פתיחה זמנית של אתר.
+    </p>
+  </div>
+
+<script>
+  // The blocked domain is diverted here by DNS, so the browser's own address is the blocked site.
+  var host = location.hostname || "";
+  var param = new URLSearchParams(location.search).get("site");
+  var site = (param || host || "").replace(/^www\./, "");
+  document.getElementById("site").textContent = site;
+  // Deep link into the app to run the challenge/response unlock for exactly this site.
+  document.getElementById("unlockBtn").href = "kosherguard://site-unlock?d=" + encodeURIComponent(site);
+</script>
+</body>
+</html>
