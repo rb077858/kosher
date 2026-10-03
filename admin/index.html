@@ -337,6 +337,13 @@
             הדביקו קישור לאפליקציה מ-Google Play (אפשר כמה, אחד בכל שורה). השם, הסמל והתיאור מזוהים
             אוטומטית במכשיר ומוצגים בחנות.
           </p>
+          <div class="field" style="margin-bottom:10px">
+            <label for="storeAddCat">הקטגוריה שאליה ייווספו</label>
+            <div style="display:flex;gap:8px">
+              <select id="storeAddCat" class="rtl-input" style="flex:1"></select>
+              <button class="ghost small" id="btnNewCatInline" type="button">+ קטגוריה חדשה</button>
+            </div>
+          </div>
           <div class="add-row">
             <textarea id="storePlayInput" rows="2" placeholder="https://play.google.com/store/apps/details?id=com.waze"></textarea>
             <button class="primary small" id="btnStoreAddPlay" type="button">הוספה</button>
@@ -375,6 +382,21 @@
               <textarea id="loadStoreInput" rows="2" placeholder="KGSTORE1:..."></textarea>
               <button class="primary small" id="btnLoadStore" type="button">טעינה</button>
             </div>
+          </details>
+        </section>
+
+        <section class="card">
+          <details class="fold" id="catFold">
+            <summary>ניהול קטגוריות</summary>
+            <p class="desc" style="margin:0 0 10px">
+              הקטגוריות מופיעות כלשוניות באפליקציה, לפי הסדר שכאן. אפליקציה שלא שויכה לאף קטגוריה
+              תוצג במכשיר תחת "כללי".
+            </p>
+            <div class="add-row">
+              <input type="text" id="newCatInput" class="rtl-input" placeholder="שם קטגוריה חדשה" style="flex:1">
+              <button class="primary small" id="btnAddCat" type="button">הוספה</button>
+            </div>
+            <div id="catList" class="cat-list"></div>
           </details>
         </section>
 
@@ -1361,15 +1383,109 @@ $("master").addEventListener("input", () => checkStoreText());
 
 // ---- store builder tab ----
 const STORE_DRAFT_KEY = "kg.storeDraft";
-let storeApps = store.get(STORE_DRAFT_KEY, []); // [{ p } | { n, d, u, h?, i?, p? }]
+// Apps: [{ p } | { n, d, u, h?, i?, p? }], each with an optional `c` = category name.
+// Categories (`storeCats`) are an ordered list of names; they become the store's tabs on the device.
+let storeApps = [];
+let storeCats = [];
+(function loadStoreDraft() {
+  const d = store.get(STORE_DRAFT_KEY, null);
+  if (Array.isArray(d)) { storeApps = d; }                       // migrate the old array-only format
+  else if (d && typeof d === "object") { storeApps = d.apps || []; storeCats = d.cats || []; }
+  // make sure every category used by an app is in the ordered list
+  storeApps.forEach((a) => { if (a.c && !storeCats.includes(a.c)) storeCats.push(a.c); });
+})();
 let lastStoreText = "";
 
 function saveStoreDraft() {
-  store.set(STORE_DRAFT_KEY, storeApps);
+  store.set(STORE_DRAFT_KEY, { cats: storeCats, apps: storeApps });
   lastStoreText = "";
   $("storeResult").hidden = true;
   $("storeQrWrap").replaceChildren();
 }
+
+const NO_CAT_LABEL = "ללא קטגוריה";
+
+/** The category groups to display, in order: declared categories first, then any extras apps use. */
+function orderedCategories() {
+  const cats = storeCats.slice();
+  storeApps.forEach((a) => { if (a.c && !cats.includes(a.c)) cats.push(a.c); });
+  return cats;
+}
+
+function addCategory(name) {
+  name = (name || "").trim();
+  if (!name) return false;
+  if (storeCats.includes(name)) { showToast("כבר יש קטגוריה בשם הזה."); return false; }
+  storeCats.push(name);
+  saveStoreDraft();
+  renderCats();
+  renderStoreList();
+  return true;
+}
+
+/** Fills the "add to category" <select> and any per-app category selects keep their own value. */
+function populateAddCatSelect() {
+  const sel = $("storeAddCat");
+  const prev = sel.value;
+  sel.replaceChildren(
+    el("option", { value: "" }, NO_CAT_LABEL),
+    ...orderedCategories().map((c) => el("option", { value: c }, c))
+  );
+  sel.value = orderedCategories().includes(prev) ? prev : "";
+}
+
+function renderCats() {
+  populateAddCatSelect();
+  const list = $("catList");
+  const cats = orderedCategories();
+  if (!cats.length) {
+    list.replaceChildren(el("p", { class: "empty-note" }, "אין קטגוריות עדיין. אפשר להוסיף למעלה."));
+    return;
+  }
+  const move = (i, delta) => {
+    const j = i + delta;
+    if (j < 0 || j >= storeCats.length) return;
+    [storeCats[i], storeCats[j]] = [storeCats[j], storeCats[i]];
+    saveStoreDraft(); renderCats(); renderStoreList();
+  };
+  const rename = (name) => {
+    const next = (prompt("שם חדש לקטגוריה:", name) || "").trim();
+    if (!next || next === name) return;
+    if (storeCats.includes(next)) { showToast("כבר יש קטגוריה בשם הזה."); return; }
+    storeCats = storeCats.map((c) => (c === name ? next : c));
+    storeApps.forEach((a) => { if (a.c === name) a.c = next; });
+    saveStoreDraft(); renderCats(); renderStoreList();
+  };
+  const remove = (name) => {
+    const n = storeApps.filter((a) => a.c === name).length;
+    if (n && !confirm(`הקטגוריה "${name}" מכילה ${n} אפליקציות. למחוק את הקטגוריה? האפליקציות יישארו ללא קטגוריה.`)) return;
+    storeCats = storeCats.filter((c) => c !== name);
+    storeApps.forEach((a) => { if (a.c === name) delete a.c; });
+    saveStoreDraft(); renderCats(); renderStoreList();
+  };
+  list.replaceChildren(...storeCats.map((name, i) => {
+    const n = storeApps.filter((a) => a.c === name).length;
+    return el("div", { class: "cat-row" },
+      el("span", { class: "cat-name" }, name),
+      el("span", { class: "cat-count" }, `${n}`),
+      el("div", { class: "store-actions" },
+        el("button", { class: "ghost small", type: "button", title: "למעלה", onclick: () => move(i, -1) }, "↑"),
+        el("button", { class: "ghost small", type: "button", title: "למטה", onclick: () => move(i, 1) }, "↓"),
+        el("button", { class: "ghost small", type: "button", onclick: () => rename(name) }, "שם"),
+        el("button", { class: "danger", type: "button", onclick: () => remove(name) }, "מחיקה")));
+  }));
+}
+
+$("btnAddCat").addEventListener("click", () => {
+  if (addCategory($("newCatInput").value)) { $("newCatInput").value = ""; }
+});
+$("newCatInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); $("btnAddCat").click(); }
+});
+$("btnNewCatInline").addEventListener("click", () => {
+  const name = (prompt("שם הקטגוריה החדשה:") || "").trim();
+  if (addCategory(name)) $("storeAddCat").value = name;
+});
 
 /** "https://play.google.com/store/apps/details?id=com.waze&hl=he" / "market://..." / "com.waze" → "com.waze". */
 function playPackageFrom(text) {
@@ -1381,15 +1497,20 @@ function playPackageFrom(text) {
 
 $("btnStoreAddPlay").addEventListener("click", () => {
   const bad = [];
+  const cat = $("storeAddCat").value || null;
+  let added = 0;
   $("storePlayInput").value.split(/[\n\s,]+/).filter(Boolean).forEach((line) => {
     const pkg = playPackageFrom(line);
     if (!pkg) { bad.push(line); return; }
-    if (!storeApps.some((a) => a.p === pkg && !a.u)) storeApps.push({ p: pkg });
+    const existing = storeApps.find((a) => a.p === pkg && !a.u);
+    if (existing) { if (cat) existing.c = cat; else delete existing.c; }     // move an existing app to this category
+    else { const e = { p: pkg }; if (cat) e.c = cat; storeApps.push(e); added++; }
   });
   $("storePlayInput").value = bad.join("\n");
   if (bad.length) showToast("לא זוהה קישור תקין: " + bad.join(", "));
   saveStoreDraft();
   renderStoreList();
+  if (added) showToast(`נוספו ${added} אפליקציות${cat ? " לקטגוריה " + cat : ""}.`);
 });
 $("storePlayInput").addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("btnStoreAddPlay").click(); }
@@ -1404,11 +1525,14 @@ $("btnLoadStore").addEventListener("click", async () => {
   if (!decoded || !Array.isArray(decoded.apps)) { showToast("טקסט החנות לא תקין, או נוצר עם סוד-מאסטר אחר."); return; }
   if (storeApps.length && !confirm(`לטעון ${decoded.apps.length} אפליקציות ולהחליף את ${storeApps.length} שברשימה כעת?`)) return;
   storeApps = decoded.apps;
+  storeCats = Array.isArray(decoded.cats) ? decoded.cats.slice() : [];
+  storeApps.forEach((a) => { if (a.c && !storeCats.includes(a.c)) storeCats.push(a.c); });
   $("loadStoreInput").value = "";
   $("loadStoreFold").open = false;
   saveStoreDraft();
+  renderCats();
   renderStoreList();
-  showToast(`נטענו ${storeApps.length} אפליקציות.`);
+  showToast(`נטענו ${storeApps.length} אפליקציות${storeCats.length ? " ב-" + storeCats.length + " קטגוריות" : ""}.`);
 });
 
 async function fileSha256Base64(file) {
@@ -1452,6 +1576,8 @@ $("btnStoreAddApk").addEventListener("click", async () => {
     if (!PACKAGE_RE.test(pkg)) { showToast("שם החבילה לא תקין"); return; }
     entry.p = pkg;
   }
+  const cat = $("storeAddCat").value || null;
+  if (cat) entry.c = cat;
   try {
     if ($("apkFile").files[0]) entry.h = await fileSha256Base64($("apkFile").files[0]);
     if ($("apkLogo").files[0]) entry.i = await logoDataUrl($("apkLogo").files[0]);
@@ -1466,39 +1592,67 @@ $("btnStoreAddApk").addEventListener("click", async () => {
   showToast("האפליקציה נוספה");
 });
 
+/** A per-app category picker; changing it moves the app between groups. */
+function appCatSelect(app) {
+  const sel = el("select", {
+    class: "rtl-input store-cat-select",
+    onchange: (e) => { const v = e.target.value; if (v) app.c = v; else delete app.c; saveStoreDraft(); renderCats(); renderStoreList(); },
+  }, el("option", { value: "" }, NO_CAT_LABEL), ...orderedCategories().map((c) => el("option", { value: c }, c)));
+  sel.value = app.c || "";
+  return sel;
+}
+
 function renderStoreList() {
   $("storeCount").textContent = storeApps.length ? `${storeApps.length} אפליקציות` : "";
   if (!storeApps.length) {
     $("storeList").replaceChildren(el("p", { class: "empty-note" }, "החנות ריקה. הוסיפו אפליקציות מ-Google Play או מקובץ APK."));
     return;
   }
-  $("storeList").replaceChildren(...storeApps.map((app, i) => {
+  // Reorder an app relative only to its own category's members.
+  const moveWithinCat = (app, delta) => {
+    const cat = app.c || null;
+    const sibs = storeApps.map((a, idx) => ({ a, idx })).filter((x) => (x.a.c || null) === cat);
+    const pos = sibs.findIndex((x) => x.a === app);
+    const target = sibs[pos + delta];
+    if (!target) return;
+    const i = sibs[pos].idx, j = target.idx;
+    [storeApps[i], storeApps[j]] = [storeApps[j], storeApps[i]];
+    saveStoreDraft();
+    renderStoreList();
+  };
+  const appRow = (app) => {
     const name = app.n || appName(app.p) || app.p;
     const icon = app.i
       ? el("img", { class: "store-icon", src: app.i, alt: "" })
       : el("div", { class: "store-icon placeholder" }, (name || "?").slice(0, 1).toUpperCase());
-    const move = (delta) => {
-      const j = i + delta;
-      if (j < 0 || j >= storeApps.length) return;
-      [storeApps[i], storeApps[j]] = [storeApps[j], storeApps[i]];
-      saveStoreDraft();
-      renderStoreList();
-    };
     return el("div", { class: "store-item" },
       icon,
       el("div", { class: "store-meta" },
         el("strong", {}, name),
         el("span", { class: "store-source" }, app.u ? "APK" + (app.h ? " · מאומת" : "") : "Google Play"),
         app.p ? el("code", {}, app.p) : "",
-        app.d ? el("span", { class: "store-desc" }, app.d) : ""),
+        app.d ? el("span", { class: "store-desc" }, app.d) : "",
+        appCatSelect(app)),
       el("div", { class: "store-actions" },
-        el("button", { class: "ghost small", type: "button", title: "למעלה", onclick: () => move(-1) }, "↑"),
-        el("button", { class: "ghost small", type: "button", title: "למטה", onclick: () => move(1) }, "↓"),
+        el("button", { class: "ghost small", type: "button", title: "למעלה", onclick: () => moveWithinCat(app, -1) }, "↑"),
+        el("button", { class: "ghost small", type: "button", title: "למטה", onclick: () => moveWithinCat(app, 1) }, "↓"),
         el("button", {
           class: "danger", type: "button",
-          onclick: () => { storeApps.splice(i, 1); saveStoreDraft(); renderStoreList(); },
+          onclick: () => { const idx = storeApps.indexOf(app); if (idx >= 0) storeApps.splice(idx, 1); saveStoreDraft(); renderCats(); renderStoreList(); },
         }, "הסרה")));
-  }));
+  };
+  const groups = orderedCategories().map((cat) => [cat, storeApps.filter((a) => a.c === cat)]);
+  const uncategorized = storeApps.filter((a) => !a.c);
+  if (uncategorized.length) groups.push([null, uncategorized]);
+  const nodes = [];
+  groups.forEach(([cat, apps]) => {
+    nodes.push(el("div", { class: "store-cat-head" },
+      el("span", {}, cat || NO_CAT_LABEL),
+      el("span", { class: "cat-count" }, `${apps.length}`)));
+    if (apps.length) apps.forEach((a) => nodes.push(appRow(a)));
+    else nodes.push(el("p", { class: "empty-note", style: "margin:2px 0 10px" }, "אין אפליקציות בקטגוריה — אפשר לשייך למעלה."));
+  });
+  $("storeList").replaceChildren(...nodes);
 }
 
 $("btnBuildStore").addEventListener("click", async () => {
@@ -1507,7 +1661,7 @@ $("btnBuildStore").addEventListener("click", async () => {
   if (!storeApps.length) issues.push("הוסיפו לפחות אפליקציה אחת.");
   $("storeIssues").replaceChildren(...issues.map((t) => el("li", {}, t)));
   if (issues.length) return;
-  const text = await encryptStore(JSON.stringify({ v: 1, apps: storeApps }), masterBytes());
+  const text = await encryptStore(JSON.stringify({ v: 1, cats: orderedCategories(), apps: storeApps }), masterBytes());
   showStoreCode(text, "טקסט החנות — להדבקה בברקוד הגדרות");
 });
 
@@ -1951,6 +2105,7 @@ renderSuggestions();
 renderCatalogStatus();
 renderRecentDevices();
 renderAllForm();
+renderCats();
 renderStoreList();
 checkStoreText();
 refreshMasterBar();
