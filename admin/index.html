@@ -364,6 +364,21 @@
         </section>
 
         <section class="card">
+          <details class="fold" id="loadStoreFold">
+            <summary>טעינת חנות קיימת מטקסט</summary>
+            <p class="desc" style="margin:0 0 10px">
+              מדביקים טקסט חנות קיים (מתחיל ב-<code>KGSTORE1:</code>) כדי לערוך אותו. כל רשימת האפליקציות
+              שבטקסט תיטען לכאן ו<strong>תחליף</strong> את הרשימה הנוכחית. צריך שסוד-המאסטר למעלה יהיה
+              זה שאיתו נוצר הטקסט.
+            </p>
+            <div class="add-row">
+              <textarea id="loadStoreInput" rows="2" placeholder="KGSTORE1:..."></textarea>
+              <button class="primary small" id="btnLoadStore" type="button">טעינה</button>
+            </div>
+          </details>
+        </section>
+
+        <section class="card">
           <div class="section-title">
             <h2>האפליקציות בחנות</h2>
             <span class="count" id="storeCount"></span>
@@ -1378,6 +1393,22 @@ $("btnStoreAddPlay").addEventListener("click", () => {
 });
 $("storePlayInput").addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("btnStoreAddPlay").click(); }
+});
+
+// Load an existing store text (KGSTORE1:...) back into the builder, replacing the current list.
+$("btnLoadStore").addEventListener("click", async () => {
+  const text = $("loadStoreInput").value.trim();
+  if (!text.startsWith(STORE_PREFIX)) { showToast("זה לא טקסט חנות (צריך להתחיל ב-KGSTORE1:)."); return; }
+  if (!masterValid()) { showToast("הזינו את סוד-המאסטר למעלה כדי לפענח את טקסט החנות."); return; }
+  const decoded = await decryptStore(text, masterBytes());
+  if (!decoded || !Array.isArray(decoded.apps)) { showToast("טקסט החנות לא תקין, או נוצר עם סוד-מאסטר אחר."); return; }
+  if (storeApps.length && !confirm(`לטעון ${decoded.apps.length} אפליקציות ולהחליף את ${storeApps.length} שברשימה כעת?`)) return;
+  storeApps = decoded.apps;
+  $("loadStoreInput").value = "";
+  $("loadStoreFold").open = false;
+  saveStoreDraft();
+  renderStoreList();
+  showToast(`נטענו ${storeApps.length} אפליקציות.`);
 });
 
 async function fileSha256Base64(file) {
