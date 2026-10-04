@@ -272,12 +272,27 @@
 
         <section class="card settings-only">
           <details class="fold">
-            <summary>מתקדם — אפליקציות פטורות תמיד</summary>
+            <summary>מתקדם — אפליקציות מותרות</summary>
             <p class="desc" style="margin-bottom:10px">
-              לעולם לא נחסמות — לא על ידי הסינון ולא בגלל הגבלת זמן, בשני המצבים. הטלפון, ההודעות
-              והמצלמה של המכשיר כבר פטורים אוטומטית — כאן מוסיפים עוד (למשל כרום).
+              שלוש רשימות נפרדות. אפליקציה יכולה להיות באיזו שמתאים — לא כל מה שמותר למרות הסינון
+              צריך להיות מותר גם בזמן השבתה או בהגבלת הזמן.
             </p>
+
+            <label style="font-weight:700;font-size:14px">פטורות תמיד</label>
+            <p class="desc" style="margin:2px 0 6px">לעולם לא נחסמות — לא בסינון, לא בהשבתה ולא בהגבלת זמן. הטלפון, ההודעות והמצלמה כבר כאן אוטומטית.</p>
             <div id="essentialEditor"></div>
+
+            <label style="font-weight:700;font-size:14px;display:block;margin-top:14px">מותרות למרות הסינון</label>
+            <p class="desc" style="margin:2px 0 6px">לא נחסמות על ידי הסינון (אבל כן כפופות להגבלת זמן ולזמן השבתה).</p>
+            <div id="allowDespiteFilterEditor"></div>
+
+            <label style="font-weight:700;font-size:14px;display:block;margin-top:14px">מותרות למרות הגבלת זמן</label>
+            <p class="desc" style="margin:2px 0 6px">לא ייחסמו כשנגמר הזמן היומי (אבל כן כפופות לסינון ולזמן השבתה).</p>
+            <div id="allowDespiteDailyEditor"></div>
+
+            <label style="font-weight:700;font-size:14px;display:block;margin-top:14px">מותרות למרות זמן השבתה</label>
+            <p class="desc" style="margin:2px 0 6px">זמינות גם בשעות ההשבתה (אבל כן כפופות לסינון ולהגבלת זמן).</p>
+            <div id="allowDespiteDowntimeEditor"></div>
           </details>
           <details class="fold">
             <summary>קטלוג וטעינה מברקוד קיים</summary>
@@ -843,6 +858,9 @@ function defaultState() {
     dailyLimitEnabled: false,
     dailyLimitMinutes: 60,
     essential: [],
+    allowDespiteFilter: [],
+    allowDespiteDowntime: [],
+    allowDespiteDaily: [],
     blockPlayStore: false,
     vpnEnabled: false,
     blockedDomains: "",
@@ -1090,7 +1108,10 @@ function renderAllForm() {
   renderBlacklist();
   editors.custom = chipEditor("customAppsEditor", "customAppPackages", "שם או package, למשל Chrome");
   editors.whitelist = chipEditor("whitelistEditor", "whitelist", "שם או package, למשל Waze");
-  editors.essential = chipEditor("essentialEditor", "essential", "package, למשל com.android.dialer");
+  editors.essential = chipEditor("essentialEditor", "essential", "שם או package, למשל com.android.dialer");
+  editors.allowDespiteFilter = chipEditor("allowDespiteFilterEditor", "allowDespiteFilter", "שם או package, למשל Chrome");
+  editors.allowDespiteDowntime = chipEditor("allowDespiteDowntimeEditor", "allowDespiteDowntime", "שם או package");
+  editors.allowDespiteDaily = chipEditor("allowDespiteDailyEditor", "allowDespiteDaily", "שם או package");
   $("setFilteringEnabled").checked = state.filteringEnabled;
   $("setBlockPlayStore").checked = state.blockPlayStore;
   $("setVpnEnabled").checked = state.vpnEnabled;
@@ -1133,6 +1154,9 @@ function buildSettings() {
     dailyDeviceLimitMinutes: state.dailyLimitMinutes,
   };
   if (state.essential.length) settings.essentialAppPackages = state.essential;
+  settings.allowDespiteFilterPackages = state.allowDespiteFilter;
+  settings.allowDespiteDowntimePackages = state.allowDespiteDowntime;
+  settings.allowDespiteDailyLimitPackages = state.allowDespiteDaily;
   settings.blockPlayStore = state.blockPlayStore;
   settings.vpnEnabled = state.vpnEnabled;
   const domains = normalizeDomains(state.blockedDomains);
@@ -1264,6 +1288,9 @@ $("btnImport").addEventListener("click", () => {
   if ("dailyDeviceLimitEnabled" in s) next.dailyLimitEnabled = s.dailyDeviceLimitEnabled;
   if ("dailyDeviceLimitMinutes" in s) next.dailyLimitMinutes = s.dailyDeviceLimitMinutes;
   if (s.essentialAppPackages) next.essential = s.essentialAppPackages;
+  if (s.allowDespiteFilterPackages) next.allowDespiteFilter = s.allowDespiteFilterPackages;
+  if (s.allowDespiteDowntimePackages) next.allowDespiteDowntime = s.allowDespiteDowntimePackages;
+  if (s.allowDespiteDailyLimitPackages) next.allowDespiteDaily = s.allowDespiteDailyLimitPackages;
   state = next;
   if (!masterValue() && bundle.masterSecret) setMaster(bundle.masterSecret);
   $("importText").value = "";
