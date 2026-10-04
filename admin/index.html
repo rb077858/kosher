@@ -160,6 +160,18 @@
             <span>חסימת Google Play — מתקינים רק מהחנות הכשרה</span>
             <label class="switch"><input type="checkbox" id="setBlockPlayStore"><span class="slider"></span></label>
           </div>
+          <div class="switch-row">
+            <span>חסימת מצב מפתחים — נעילת המכשיר כשאפשרויות מפתחים מופעלות</span>
+            <label class="switch"><input type="checkbox" id="setBlockDeveloperMode"><span class="slider"></span></label>
+          </div>
+          <div class="switch-row">
+            <span>מצב מפתחים מותר במכשיר הזה</span>
+            <label class="switch"><input type="checkbox" id="setDeveloperModeAllowed"><span class="slider"></span></label>
+          </div>
+          <p class="hint" id="devModeWarning" hidden style="margin:0;color:#b91c1c;font-weight:600">
+            ⚠️ שימו לב: אישור מצב מפתחים במכשיר נותן למשתמש גישה לכלים (ניפוי USB, התקנות צד, שינוי
+            הגדרות מערכת) שעלולים לשמש לעקיפה או "פריצה" של מסנן כשר. השאירו מכובה אלא אם זה מכשיר ניהול שלכם.
+          </p>
           <div class="sub-block">
             <div class="switch-row">
               <h3>סינון תוכן באינטרנט (VPN)</h3>
@@ -857,6 +869,8 @@ function defaultState() {
     downtimeEnd: "07:00",
     dailyLimitEnabled: false,
     dailyLimitMinutes: 60,
+    blockDeveloperMode: false,
+    developerModeAllowed: false,
     essential: [],
     allowDespiteFilter: [],
     allowDespiteDowntime: [],
@@ -1079,6 +1093,8 @@ function bindSimpleFields() {
   };
   bind("setFilteringEnabled", "filteringEnabled", "checked");
   bind("setBlockPlayStore", "blockPlayStore", "checked");
+  bind("setBlockDeveloperMode", "blockDeveloperMode", "checked");
+  bind("setDeveloperModeAllowed", "developerModeAllowed", "checked");
   bind("setVpnEnabled", "vpnEnabled", "checked");
   bind("setBlockedDomains", "blockedDomains");
   bind("setDowntimeEnabled", "downtimeEnabled", "checked");
@@ -1091,6 +1107,7 @@ function bindSimpleFields() {
 function syncFieldVisibility() {
   $("downtimeFields").hidden = !state.downtimeEnabled;
   $("dailyFields").hidden = !state.dailyLimitEnabled;
+  $("devModeWarning").hidden = !state.developerModeAllowed;
 }
 
 document.querySelectorAll("#dailyQuickPicks button").forEach((b) => b.addEventListener("click", () => {
@@ -1114,6 +1131,8 @@ function renderAllForm() {
   editors.allowDespiteDaily = chipEditor("allowDespiteDailyEditor", "allowDespiteDaily", "שם או package");
   $("setFilteringEnabled").checked = state.filteringEnabled;
   $("setBlockPlayStore").checked = state.blockPlayStore;
+  $("setBlockDeveloperMode").checked = state.blockDeveloperMode;
+  $("setDeveloperModeAllowed").checked = state.developerModeAllowed;
   $("setVpnEnabled").checked = state.vpnEnabled;
   $("setBlockedDomains").value = state.blockedDomains;
   $("setStoreText").value = state.storeText;
@@ -1158,6 +1177,8 @@ function buildSettings() {
   settings.allowDespiteDowntimePackages = state.allowDespiteDowntime;
   settings.allowDespiteDailyLimitPackages = state.allowDespiteDaily;
   settings.blockPlayStore = state.blockPlayStore;
+  settings.blockDeveloperMode = state.blockDeveloperMode;
+  settings.developerModeAllowed = state.developerModeAllowed;
   settings.vpnEnabled = state.vpnEnabled;
   const domains = normalizeDomains(state.blockedDomains);
   if (domains.length) settings.blockedDomains = domains;
@@ -1272,6 +1293,8 @@ $("btnImport").addEventListener("click", () => {
   if ("profileId" in s) next.profileId = s.profileId;
   if ("filteringEnabled" in s) next.filteringEnabled = s.filteringEnabled;
   if ("blockPlayStore" in s) next.blockPlayStore = s.blockPlayStore;
+  if ("blockDeveloperMode" in s) next.blockDeveloperMode = s.blockDeveloperMode;
+  if ("developerModeAllowed" in s) next.developerModeAllowed = s.developerModeAllowed;
   if ("vpnEnabled" in s) next.vpnEnabled = s.vpnEnabled;
   if (s.blockedDomains) next.blockedDomains = s.blockedDomains.join("\n");
   if (s.kosherStore) { next.storeText = s.kosherStore; next.storeAction = "set"; }
@@ -1759,6 +1782,7 @@ const FAULTS = {
   2: { title: "השעון במכשיר מאחר", detail: (m) => `השעה במכשיר מאחרת לעומת השעה האמיתית. הפרש: ${formatMinutes(m)}${m >= 9999 ? " או יותר" : ""}.`, fix: 'מפעילים בהגדרות המכשיר "תאריך ושעה אוטומטיים".' },
   3: { title: "אזור הזמן שונה", detail: (m) => `אזור הזמן במכשיר שונה, כך שהשעה המקומית מקדימה. הפרש: ${formatMinutes(m)}.`, fix: 'מפעילים בהגדרות המכשיר "אזור זמן אוטומטי" (או מחזירים את אזור הזמן הנכון). אחרי הפתיחה, אזור הזמן הנוכחי נחשב לתקין.' },
   4: { title: "אזור הזמן שונה", detail: (m) => `אזור הזמן במכשיר שונה, כך שהשעה המקומית מאחרת. הפרש: ${formatMinutes(m)}.`, fix: 'מפעילים בהגדרות המכשיר "אזור זמן אוטומטי" (או מחזירים את אזור הזמן הנכון). אחרי הפתיחה, אזור הזמן הנוכחי נחשב לתקין.' },
+  5: { title: "מצב מפתחים פעיל", detail: (d) => d === 1 ? "אפשרויות המפתחים וניפוי USB מופעלים במכשיר." : "אפשרויות המפתחים מופעלות במכשיר.", fix: 'פותחים זמנית למשתמש, ואז מכבים בהגדרות המכשיר את "אפשרויות מפתחים" (Developer options). כל עוד הן פעילות, המכשיר יינעל שוב.' },
 };
 
 $("faultInput").addEventListener("input", (e) => {
