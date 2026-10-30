@@ -99,12 +99,10 @@ function deviceIssues(d) {
   const out = [];
   if (d.filteringEnabled === false) out.push("הסינון כבוי");
   const p = d.protection || {};
-  if (d.tier !== "rom" && d.tier !== "owner" && p.accessibility === false) out.push("שירות הנגישות כבוי");
+  if (p.accessibility === false) out.push("שירות הנגישות כבוי");
   if (p.vpn === false) out.push("ה-VPN כבוי");
-  if (d.tier === "owner" && p.deviceOwner === false) out.push("לא Device Owner");
   return out;
 }
-const TIERS = { app: "אפליקציה", owner: "מנהל מכשיר", rom: "מערכת הפעלה" };
 const PERMS = {
   monitoring: ["ניטור פעילות", "צפייה באתרים ובאפליקציות שהתלמיד השתמש בהם"],
   liveView: ["צפייה חיה", "עדכון מצב המכשיר כל כמה שניות לפי בקשה"],
@@ -339,7 +337,6 @@ async function renderInstitutions() {
 
 function editInstitution(inst) {
   const p = inst?.permissions || { monitoring: true, liveView: true, remoteCommands: true, editPolicy: true, manageStaff: true };
-  const tiers = inst?.tiers || ["app", "owner", "rom"];
   openModal(inst ? "עריכת מוסד" : "מוסד חדש", `
     <div class="form-grid">
       <div class="field full"><label>שם המוסד</label><input class="input" name="name" required value="${esc(inst?.name)}" placeholder="לדוגמה: ישיבת אור התורה"></div>
@@ -351,9 +348,6 @@ function editInstitution(inst) {
     <div class="field"><label>הרשאות למנהלי המוסד</label><div class="grid-2" style="gap:8px">
       ${Object.entries(PERMS).map(([k, [t, d]]) => `<label class="check"><input type="checkbox" name="perm_${k}" ${p[k] ? "checked" : ""}><span><b>${t}</b><small>${d}</small></span></label>`).join("")}
     </div></div>
-    <div class="field"><label>שיטות התקנה מותרות</label><div class="grid-3" style="gap:8px">
-      ${Object.entries(TIERS).map(([k, t]) => `<label class="check"><input type="checkbox" name="tier_${k}" ${tiers.includes(k) ? "checked" : ""}><span><b>${t}</b></span></label>`).join("")}
-    </div></div>
     <label class="check"><input type="checkbox" name="active" ${inst?.active === false ? "" : "checked"}><span><b>המוסד פעיל</b><small>מוסד מושבת: המנהלים לא נכנסים ומכשירים חדשים לא נרשמים</small></span></label>
     ${inst ? `<button type="button" class="btn danger sm" id="btnDelInst" style="justify-self:start">${ic("trash")}מחיקת המוסד</button>` : ""}`,
   async (f) => {
@@ -362,7 +356,6 @@ function editInstitution(inst) {
       contactPhone: f.contactPhone.value.trim(), maxStudents: Math.max(0, parseInt(f.maxStudents.value, 10) || 0),
       active: f.active.checked,
       permissions: Object.fromEntries(Object.keys(PERMS).map((k) => [k, f["perm_" + k].checked])),
-      tiers: Object.keys(TIERS).filter((k) => f["tier_" + k].checked),
     };
     if (inst) {
       await updateDoc(doc(db, "institutions", inst.id), data);
@@ -557,8 +550,7 @@ function drawDevices() {
       <div class="t"><b>${esc(d.studentName || d.label || "ללא שם")}</b>
         <small>${esc([d.className, [d.manufacturer, d.model].filter(Boolean).join(" ")].filter(Boolean).join(" · "))} · ${isOnline(d) ? (d.currentAppName ? "עכשיו ב" + esc(d.currentAppName) : "מחובר") : ago(d.lastSeen)}</small></div>
       <div class="r">${iss.length ? `<span class="pill red" title="${esc(iss.join(", "))}">${esc(iss[0])}${iss.length > 1 ? " +" + (iss.length - 1) : ""}</span>` : ""}
-        ${d.battery != null ? `<span class="pill">${d.charging ? "⚡" : ""}${d.battery}%</span>` : ""}
-        <span class="pill blue">${TIERS[d.tier] || "אפליקציה"}</span></div></div>`;
+        ${d.battery != null ? `<span class="pill">${d.charging ? "⚡" : ""}${d.battery}%</span>` : ""}</div></div>`;
   }).join("") : emptyHtml("phone", "אין תוצאות", "נסו חיפוש או סינון אחר");
   document.querySelectorAll("[data-dev]").forEach((r) => (r.onclick = () => openDevice(r.dataset.dev)));
 }
@@ -726,13 +718,12 @@ function updateDrawer(d) {
     ["אפליקציה פתוחה", d.currentAppName || (d.currentApp ? appLabel(d.currentApp) : "—")],
     ["סוללה", d.battery != null ? `${d.battery}%${d.charging ? " · בטעינה" : ""}` : "—"],
     ["רשת", { wifi: "Wi-Fi", cell: "סלולר", none: "ללא" }[d.network] || "—"],
-    ["שיטת התקנה", TIERS[d.tier] || "אפליקציה"],
     ["דגם", [d.manufacturer, d.model].filter(Boolean).join(" ") || "—"],
     ["אנדרואיד / גרסה", `${d.androidVersion || "?"} / ${d.appVersion || "?"}`],
     ["סינון", d.filteringEnabled === false ? '<span style="color:var(--danger);font-weight:700">כבוי</span>' : '<span class="yes">פעיל</span>'],
     ["נגישות", yes(p.accessibility)],
     ["VPN תוכן", yes(p.vpn)],
-    ["מנהל מכשיר", yes(p.deviceOwner ?? p.deviceAdmin)],
+    ["מנהל מכשיר", yes(p.deviceAdmin)],
     ["תווית מכשיר", `<span class="mono">${esc(d.label || "—")}</span>`],
     ["נרשם", fmtDateTime(d.enrolledAt)],
   ].map(([k, v]) => `<div><small>${k}</small><span>${typeof v === "string" && v.startsWith("<") ? v : esc(v)}</span></div>`).join("");
@@ -787,7 +778,6 @@ async function renderEnroll() {
     cloud: { p: FIREBASE_CONFIG.projectId, i: inst.id, t: keys.enrollToken, n: inst.name },
   });
   const left = Math.max(0, (inst.maxStudents || 0) - used);
-  const tiers = inst.tiers || ["app", "owner", "rom"];
   main(head("רישום מכשיר", "סורקים את הברקוד הזה פעם אחת בכל טלפון של תלמיד",
     `<button class="btn ghost" id="btnDlQr">${ic("download")}הורדת ברקוד</button><button class="btn ghost" onclick="print()">${ic("print")}הדפסה</button>`) + `
     <div class="grid-2" style="align-items:start">
@@ -801,7 +791,7 @@ async function renderEnroll() {
       <div class="stack">
         <div class="panel"><div class="panel-head"><h2>איך רושמים טלפון</h2></div><div class="panel-body">
           <ol class="steps" style="gap:10px">
-            <li><h4>מתקינים</h4><p>לפי שיטת ההתקנה שבחרתם (${tiers.map((t) => TIERS[t]).join(" / ")}). <a href="../install.html" target="_blank">מדריכי ההתקנה</a></p></li>
+            <li><h4>מתקינים</h4><p>מורידים את האפליקציה בטלפון של התלמיד. <a href="../install.html" target="_blank">מדריך ההתקנה</a></p></li>
             <li><h4>סורקים</h4><p>במסך הפתיחה של האפליקציה לוחצים "סריקת ברקוד מוסד" וסורקים את הברקוד.</p></li>
             <li><h4>שם התלמיד</h4><p>מקלידים שם וכיתה. הטלפון מופיע מיד ברשימת המכשירים.</p></li>
             <li><h4>הרשאות</h4><p>מאשרים את ההרשאות שהאפליקציה מבקשת, וזהו.</p></li>
@@ -978,14 +968,9 @@ async function renderInfo() {
       <div class="card stat"><small>סטטוס</small><b style="color:${i.active ? "var(--accent)" : "var(--danger)"}">${i.active ? "פעיל" : "מושבת"}</b></div>
       <div class="card stat"><small>נוצר</small><b style="font-size:20px">${fmtDateTime(i.createdAt)}</b></div>
     </div>
-    <div class="grid-2">
-      <div class="panel"><div class="panel-head"><h2>הרשאות</h2></div><div class="panel-body stack" style="gap:8px">
-        ${Object.entries(PERMS).map(([k, [t, d]]) => `<div style="display:flex;justify-content:space-between;gap:10px"><span><b>${t}</b><br><small class="muted">${d}</small></span>
-          <span class="pill ${i.permissions?.[k] ? "green" : ""}">${i.permissions?.[k] ? "מותר" : "חסום"}</span></div>`).join("")}</div></div>
-      <div class="panel"><div class="panel-head"><h2>שיטות התקנה</h2></div><div class="panel-body stack" style="gap:8px">
-        ${Object.entries(TIERS).map(([k, t]) => `<div style="display:flex;justify-content:space-between"><b>${t}</b><span class="pill ${(i.tiers || []).includes(k) ? "green" : ""}">${(i.tiers || []).includes(k) ? "מותר" : "לא מותר"}</span></div>`).join("")}
-        <a href="../install.html" target="_blank" class="btn sm ghost" style="justify-self:start;margin-top:8px">מדריכי ההתקנה</a></div></div>
-    </div>`);
+    <div class="panel"><div class="panel-head"><h2>הרשאות</h2><a href="../install.html" target="_blank" class="btn sm ghost">מדריך ההתקנה</a></div><div class="panel-body stack" style="gap:8px">
+      ${Object.entries(PERMS).map(([k, [t, d]]) => `<div style="display:flex;justify-content:space-between;gap:10px"><span><b>${t}</b><br><small class="muted">${d}</small></span>
+        <span class="pill ${i.permissions?.[k] ? "green" : ""}">${i.permissions?.[k] ? "מותר" : "חסום"}</span></div>`).join("")}</div></div>`);
   const ed = $("btnEditInst");
   if (ed) ed.onclick = () => editInstitution(i);
 }
