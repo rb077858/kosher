@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרטיות · מסנן כשר</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<style>
+  .doc { max-width: 780px; margin: 0 auto; padding: 48px 20px 80px; }
+  .doc h1 { font-size: 36px; margin: 0 0 6px; }
+  .doc h2 { font-size: 21px; margin: 32px 0 8px; }
+  .doc p, .doc li { color: var(--muted); }
+  .doc table { width: 100%; }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></span>מסנן כשר</a>
+    <button class="menu-btn" aria-label="תפריט"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+    <nav class="nav"><a href="./">ראשי</a><a href="install.html">מדריכי התקנה</a><a class="btn sm" href="portal/">כניסה לפורטל</a></nav>
+  </div>
+</header>
+<main class="doc">
+  <h1>פרטיות ומידע</h1>
+  <p>מה המסנן אוסף, מי רואה את זה, ומה לא נאסף אף פעם. טיוטה: לפני שימוש במוסד, מומלץ שעורך דין יעבור עליה.</p>
+
+  <h2>במצב משפחה (בלי מוסד)</h2>
+  <p>כל ההגדרות והנתונים נשמרים בטלפון בלבד. שום מידע לא נשלח לשרת, וקודי השחרור מחושבים בלי אינטרנט.</p>
+
+  <h2>במצב מוסד</h2>
+  <p>כשהטלפון רשום למוסד, הוא שולח לפורטל של המוסד בלבד:</p>
+  <div class="table-wrap"><table class="cmp">
+    <thead><tr><th>מידע</th><th>מתי</th></tr></thead>
+    <tbody>
+      <tr><td>שם התלמיד וכיתה (כפי שהוזנו ברישום), דגם וגרסת אנדרואיד</td><td>ברישום</td></tr>
+      <tr><td>מצב ההגנה, סוללה, סוג רשת, האפליקציה הפתוחה</td><td>בכל דיווח (ברירת מחדל: כל 5 דקות)</td></tr>
+      <tr><td>שמות אתרים (דומיין בלבד, למשל ynet.co.il)</td><td>רק אם המוסד הפעיל "דיווח אתרים"</td></tr>
+      <tr><td>אילו אפליקציות נפתחו ומה נחסם</td><td>רק אם המוסד הפעיל "דיווח אפליקציות"</td></tr>
+    </tbody></table></div>
+
+  <h2>מה לא נאסף אף פעם</h2>
+  <ul>
+    <li>תוכן הודעות, שיחות, תמונות או קבצים</li>
+    <li>כתובות מלאות של דפים, חיפושים, טפסים או סיסמאות</li>
+    <li>מיקום</li>
+  </ul>
+
+  <h2>מי רואה את המידע</h2>
+  <p>רק מנהלי המוסד שהטלפון רשום אליו, ורק לפי ההרשאות שמנהל המערכת נתן להם. המידע נשמר ב-Google Firebase. כשמסירים מכשיר מהמוסד, כל הדיווחים שלו נמחקים.</p>
+
+  <h2>שקיפות לתלמיד</h2>
+  <p>באפליקציה בטלפון מוצג תמיד לאיזה מוסד הטלפון רשום ומה מדווח.</p>
+</main>
+<footer class="site"><div class="wrap"><span>מסנן כשר</span><nav><a href="./">ראשי</a><a href="install.html">מדריכי התקנה</a></nav></div></footer>
+<script src="assets/site.js"></script>
+</body>
+</html>

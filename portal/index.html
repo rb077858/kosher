@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פורטל ניהול · מסנן כשר</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+<link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+<script src="../vendor/qrcode.js"></script>
+<script src="../shared.js"></script>
+<style>
+  body { min-height: 100vh; }
+  .topbar .who { margin-inline-start: auto; display: flex; align-items: center; gap: 10px; color: #c7d2e8; font-size: 14px; }
+  .topbar .who img, .avatar { width: 32px; height: 32px; border-radius: 50%; background: #2a3a66; color: #fff; display: grid; place-items: center; font-weight: 700; object-fit: cover; }
+  @media (max-width: 640px) { .topbar .who .email { display: none; } }
+
+  /* Auth screens */
+  .auth { min-height: calc(100vh - 64px); display: grid; place-items: center; padding: 32px 16px;
+    background: radial-gradient(800px 400px at 80% 0%, color-mix(in srgb, var(--brand) 14%, transparent), transparent 70%); }
+  .auth .card { width: 100%; max-width: 440px; padding: 32px; display: grid; gap: 16px; }
+  .auth h1 { margin: 0; font-size: 26px; }
+  .auth p.sub { margin: -8px 0 4px; color: var(--muted); }
+  .or { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
+  .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+  .linkish { background: none; border: 0; color: var(--brand); font: inherit; font-weight: 600; cursor: pointer; padding: 0; }
+  .g-btn { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .g-btn:hover { background: var(--surface-2); }
+  .err-box { background: var(--danger-soft); color: var(--danger); padding: 10px 12px; border-radius: 10px; font-size: 14px; }
+
+  /* App shell */
+  .shell { display: grid; grid-template-columns: 250px 1fr; min-height: calc(100vh - 64px); }
+  .side { background: var(--surface); border-inline-end: 1px solid var(--border); padding: 18px 12px; display: flex; flex-direction: column; gap: 4px; }
+  .side .ctx { padding: 10px 12px 14px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+  .side .ctx small { color: var(--muted); font-size: 12px; font-weight: 600; }
+  .side .ctx b { display: block; font-size: 16px; line-height: 1.3; }
+  .side a { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; color: var(--text); text-decoration: none; font-weight: 500; font-size: 15px; }
+  .side a svg { width: 19px; height: 19px; color: var(--muted); }
+  .side a:hover { background: var(--surface-2); }
+  .side a.on { background: var(--brand-soft); color: var(--brand); font-weight: 700; }
+  .side a.on svg { color: var(--brand); }
+  .side .sep { height: 1px; background: var(--border); margin: 8px 4px; }
+  .main { padding: 28px 32px 60px; min-width: 0; }
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; }
+    .side { flex-direction: row; overflow-x: auto; border-inline-end: 0; border-bottom: 1px solid var(--border); padding: 8px; gap: 4px; position: sticky; top: 64px; z-index: 20; }
+    .side .ctx, .side .sep { display: none; }
+    .side a { white-space: nowrap; padding: 8px 12px; }
+    .main { padding: 20px 16px 48px; }
+  }
+  .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+  .page-head h1 { margin: 0; font-size: 28px; line-height: 1.2; }
+  .page-head p { margin: 4px 0 0; color: var(--muted); }
+  .page-head .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .back { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+
+  .stat { padding: 20px; }
+  .stat small { color: var(--muted); font-weight: 600; font-size: 13px; }
+  .stat b { display: block; font-size: 30px; line-height: 1.2; margin-top: 4px; }
+  .stat .bar { height: 6px; background: var(--surface-2); border-radius: 3px; margin-top: 10px; overflow: hidden; }
+  .stat .bar i { display: block; height: 100%; background: var(--brand); border-radius: 3px; }
+
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow); }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .panel-head h2 { margin: 0; font-size: 18px; }
+  .panel-body { padding: 20px; }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .toolbar .input { width: auto; min-width: 200px; padding: 9px 12px; }
+
+  .rows { display: grid; }
+  .row { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .row:last-child { border-bottom: 0; }
+  .row:hover { background: var(--surface-2); }
+  .row .t { min-width: 0; }
+  .row .t b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .t small { color: var(--muted); font-size: 13px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .r { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+  .dev-ic { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); position: relative; }
+  .dev-ic svg { width: 22px; height: 22px; }
+  .dev-ic .st { position: absolute; bottom: -2px; inset-inline-end: -2px; width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--surface); background: #9aa8bf; }
+  .dev-ic .st.on { background: var(--accent); }
+  .dev-ic .st.live { background: #ef4444; box-shadow: 0 0 0 0 #ef4444aa; animation: pulse 1.6s infinite; }
+  @keyframes pulse { to { box-shadow: 0 0 0 8px #ef444400; } }
+  .empty { text-align: center; padding: 48px 20px; color: var(--muted); }
+  .empty svg { width: 44px; height: 44px; opacity: .5; }
+  .empty b { display: block; color: var(--text); font-size: 17px; margin: 8px 0 4px; }
+
+  /* Drawer */
+  .drawer-bg { position: fixed; inset: 0; background: #0b112080; z-index: 90; opacity: 0; pointer-events: none; transition: .2s; }
+  .drawer-bg.open { opacity: 1; pointer-events: auto; }
+  .drawer { position: fixed; top: 0; bottom: 0; left: 0; width: min(560px, 100%); background: var(--bg); z-index: 100; overflow-y: auto;
+    transform: translateX(-100%); transition: transform .25s ease; box-shadow: var(--shadow-lg); }
+  .drawer.open { transform: none; }
+  .drawer .d-head { position: sticky; top: 0; background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 20px; display: flex; gap: 12px; align-items: center; z-index: 2; }
+  .drawer .d-head h2 { margin: 0; font-size: 19px; flex: 1; min-width: 0; }
+  .drawer .d-body { padding: 18px 20px 40px; display: grid; gap: 16px; }
+  .icon-btn { background: var(--surface-2); border: 1px solid var(--border); color: var(--text); width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; cursor: pointer; }
+  .icon-btn svg { width: 18px; height: 18px; }
+  .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); border-radius: var(--r); overflow: hidden; border: 1px solid var(--border); }
+  .kv div { background: var(--surface); padding: 10px 14px; }
+  .kv small { display: block; color: var(--muted); font-size: 12px; font-weight: 600; }
+  .kv span { font-weight: 600; font-size: 15px; word-break: break-word; }
+  .log { display: grid; gap: 2px; max-height: 360px; overflow-y: auto; font-size: 14px; }
+  .log div { display: grid; grid-template-columns: 52px 22px 1fr; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 8px; }
+  .log div:nth-child(odd) { background: var(--surface-2); }
+  .log time { color: var(--muted); font-size: 12px; font-family: "JetBrains Mono", monospace; }
+  .log i { font-style: normal; text-align: center; }
+  .log .v { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: ltr; text-align: right; }
+  .log .blocked .v { color: var(--danger); font-weight: 600; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border: 1px solid var(--border); padding: 4px 6px 4px 10px; border-radius: 999px; font-size: 13px; }
+  .chip button { border: 0; background: none; cursor: pointer; color: var(--muted); font-size: 15px; line-height: 1; padding: 0 2px; }
+  .code-out { font-family: "JetBrains Mono", monospace; font-size: 34px; letter-spacing: .12em; text-align: center; padding: 14px; border-radius: var(--r); background: var(--accent-soft); color: var(--accent); direction: ltr; }
+  .qr-box { background: #fff; border-radius: var(--r); padding: 10px; display: grid; place-items: center; border: 1px solid var(--border); }
+  .qr-box svg { width: 100%; max-width: 320px; height: auto; }
+  .secret { font-family: "JetBrains Mono", monospace; font-size: 13px; background: var(--surface-2); border: 1px dashed var(--border); padding: 10px 12px; border-radius: 10px; direction: ltr; word-break: break-all; }
+  .muted { color: var(--muted); }
+  .small { font-size: 14px; }
+  .stack { display: grid; gap: 16px; }
+  .row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  dialog.modal { border: 0; border-radius: var(--r-lg); padding: 0; width: min(620px, calc(100% - 24px)); background: var(--surface); color: var(--text); box-shadow: var(--shadow-lg); }
+  dialog.modal::backdrop { background: #0b1120a0; }
+  dialog.modal .m-head { padding: 18px 22px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  dialog.modal .m-head h2 { margin: 0; font-size: 19px; }
+  dialog.modal .m-body { padding: 20px 22px; display: grid; gap: 14px; max-height: 70vh; overflow-y: auto; }
+  dialog.modal .m-foot { padding: 14px 22px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-start; }
+  .loading { display: grid; place-items: center; min-height: 60vh; color: var(--muted); }
+  .spinner { width: 36px; height: 36px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--brand); animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></span>
+      מסנן כשר · ניהול
+    </a>
+    <div class="who" id="who" hidden>
+      <span class="email" id="whoEmail"></span>
+      <span class="avatar" id="whoAvatar"></span>
+      <button class="btn sm light" id="btnSignOut">יציאה</button>
+    </div>
+  </div>
+</header>
+
+<div id="viewLoading" class="loading"><div class="spinner"></div></div>
+
+<!-- Sign in -->
+<div id="viewLogin" class="auth" hidden>
+  <div class="card">
+    <div>
+      <h1 id="loginTitle">כניסה לפורטל הניהול</h1>
+      <p class="sub" id="loginSub">למנהלי מוסדות ולצוות שקיבלו הרשאה</p>
+    </div>
+    <button class="btn lg g-btn block" id="btnGoogle">
+      <svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
+      המשך עם Google
+    </button>
+    <div class="or">או עם מייל וסיסמה</div>
+    <form id="formEmail" class="stack" style="gap:12px">
+      <div class="field"><label for="inEmail">מייל</label><input class="input ltr" id="inEmail" type="email" autocomplete="email" required></div>
+      <div class="field"><label for="inPass">סיסמה</label><input class="input ltr" id="inPass" type="password" autocomplete="current-password" minlength="6" required></div>
+      <div class="err-box" id="loginErr" hidden></div>
+      <button class="btn lg block" type="submit" id="btnEmailSubmit">כניסה</button>
+    </form>
+    <div class="small muted" style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <button class="linkish" id="btnToggleMode">פעם ראשונה? יצירת סיסמה</button>
+      <button class="linkish" id="btnForgot">שכחתי סיסמה</button>
+    </div>
+  </div>
+</div>
+
+<!-- Email not verified -->
+<div id="viewVerify" class="auth" hidden>
+  <div class="card">
+    <h1>אימות כתובת המייל</h1>
+    <p class="sub">שלחנו מייל אימות אל <b id="verifyEmail" class="mono"></b>. לחצו על הקישור שבמייל ואז על "בדיקה חוזרת".</p>
+    <button class="btn lg block" id="btnRecheck">בדיקה חוזרת</button>
+    <button class="btn ghost block" id="btnResend">שליחה מחדש</button>
+  </div>
+</div>
+
+<!-- No access -->
+<div id="viewNoAccess" class="auth" hidden>
+  <div class="card">
+    <h1>אין עדיין הרשאה</h1>
+    <p class="sub">החשבון <b id="noAccessEmail" class="mono"></b> לא רשום כמנהל של אף מוסד, או שהמוסד מושבת.</p>
+    <div class="callout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+      <div>בקשו ממנהל המערכת לרשום את המייל הזה, ואז רעננו את הדף.</div></div>
+    <button class="btn ghost block" onclick="location.reload()">רענון</button>
+  </div>
+</div>
+
+<!-- App -->
+<div id="viewApp" class="shell" hidden>
+  <nav class="side" id="side"></nav>
+  <main class="main" id="main"></main>
+</div>
+
+<div class="drawer-bg" id="drawerBg"></div>
+<aside class="drawer" id="drawer" aria-hidden="true"></aside>
+<dialog class="modal" id="modal"></dialog>
+<div class="toast" id="toast"></div>
+
+<script type="module" src="portal.js"></script>
+</body>
+</html>

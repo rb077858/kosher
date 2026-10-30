@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מדריכי התקנה · מסנן כשר</title>
+<meta name="description" content="מדריך צעד אחר צעד להתקנת מסנן כשר: כאפליקציה, כמנהל מכשיר (Device Owner) או כחלק ממערכת ההפעלה.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<style>
+  .page-hero { background: linear-gradient(180deg, var(--hero), var(--hero-2)); color: #fff; padding: 56px 0 90px; text-align: center; }
+  .page-hero h1 { font-size: clamp(30px, 4.4vw, 46px); margin: 0 0 10px; font-weight: 800; }
+  .page-hero p { color: #c3cee6; font-size: 18px; margin: 0 auto; max-width: 640px; }
+  .tabs-bar { margin-top: -34px; display: flex; justify-content: center; position: relative; z-index: 2; padding: 0 16px; }
+  .guide { display: grid; grid-template-columns: 1fr 300px; gap: 28px; align-items: start; padding: 40px 0 80px; }
+  @media (max-width: 960px) { .guide { grid-template-columns: 1fr; } .guide aside { order: -1; } }
+  .guide > * { min-width: 0; }
+  .guide aside { position: sticky; top: 84px; display: grid; gap: 16px; }
+  .guide aside h3 { font-size: 16px; margin: 0 0 10px; }
+  .guide aside ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; font-size: 15px; }
+  .guide aside li { display: flex; gap: 8px; }
+  .guide aside li::before { content: "•"; color: var(--brand); font-weight: 800; }
+  .guide h2 { font-size: 26px; margin: 0 0 6px; }
+  .guide .intro { color: var(--muted); margin: 0 0 22px; font-size: 17px; }
+  .sub-h { font-size: 19px; margin: 34px 0 14px; display: flex; align-items: center; gap: 10px; }
+  .sub-h .n { font-size: 13px; }
+  .steps > li ul { margin: 6px 0 0; padding-inline-start: 18px; color: var(--muted); }
+  .kbd { display: inline-block; padding: 1px 8px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 6px; background: var(--surface); font-size: 14px; font-weight: 600; }
+  .trouble td:first-child { font-family: "JetBrains Mono", monospace; font-size: 13px; direction: ltr; text-align: left; color: var(--danger); width: 46%; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></span>מסנן כשר</a>
+    <button class="menu-btn" aria-label="תפריט"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+    <nav class="nav">
+      <a href="./#features">יכולות</a>
+      <a href="install.html" class="active">מדריכי התקנה</a>
+      <a href="./#institutions">למוסדות</a>
+      <a href="./#download">הורדה</a>
+      <a class="btn sm" href="portal/">כניסה לפורטל</a>
+    </nav>
+  </div>
+</header>
+
+<div class="page-hero">
+  <div class="wrap">
+    <h1>מדריכי התקנה</h1>
+    <p>בחרו את רמת ההתקנה. כל מדריך כולל דרישות, צעדים מדויקים ופתרון תקלות</p>
+  </div>
+</div>
+<div class="tabs-bar">
+  <div class="seg" data-tabs="tier">
+    <button data-tab="app"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="2.5"/></svg>אפליקציה</button>
+    <button data-tab="owner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>מנהל מכשיר</button>
+    <button data-tab="rom"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9zM9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>מערכת הפעלה</button>
+  </div>
+</div>
+
+<main class="wrap">
+
+  <!-- ================= APP ================= -->
+  <div class="guide" data-group="tier" data-pane="app">
+    <div>
+      <h2>התקנה כאפליקציה</h2>
+      <p class="intro">הדרך המהירה: 5 דקות, בלי מחשב ובלי לאפס את הטלפון.</p>
+
+      <ol class="steps">
+        <li><h4>מורידים את הקובץ</h4>
+          <p>בטלפון, נכנסים לאתר הזה ולוחצים <a href="./#download">הורדת APK</a>, או סורקים את הברקוד שבעמוד הבית.</p></li>
+        <li><h4>מאשרים התקנה ממקור לא ידוע</h4>
+          <p>כשפותחים את הקובץ, אנדרואיד מבקש הרשאה לדפדפן להתקין אפליקציות. לוחצים <span class="kbd">הגדרות</span> ← מסמנים <span class="kbd">אישור ממקור זה</span> ← חוזרים אחורה.</p>
+          <p>אם מופיעה אזהרה של Play Protect: <span class="kbd">פרטים נוספים</span> ← <span class="kbd">להתקין בכל זאת</span>.</p></li>
+        <li><h4>פותחים ובוחרים איך לנהל</h4>
+          <ul>
+            <li><b>מוסד:</b> לוחצים "סריקת ברקוד מוסד" וסורקים את הברקוד שקיבלתם מהמוסד (בפורטל: "רישום מכשיר").</li>
+            <li><b>משפחה:</b> יוצרים מפתח מנהל ב<a href="admin/">כלי הניהול</a> וסורקים אותו. שמרו את המפתח במקום בטוח.</li>
+          </ul></li>
+        <li><h4>מאשרים הרשאות</h4>
+          <p>האפליקציה מובילה אתכם לכל הרשאה בנפרד:</p>
+          <ul>
+            <li><b>נגישות</b>: מזהה איזו אפליקציה נפתחה וחוסם אותה.</li>
+            <li><b>מנהל מכשיר</b>: מונע הסרה פשוטה של המסנן.</li>
+            <li><b>גישה לנתוני שימוש</b>: לזמני מסך.</li>
+            <li><b>VPN</b>: לסינון אתרים. התעבורה לא עוברת דרכנו, רק שאילתות DNS לשרת הסינון.</li>
+          </ul></li>
+        <li><h4>זהו</h4><p>המסנן פעיל. שינוי הגדרות דורש מעכשיו קוד מנהל.</p></li>
+      </ol>
+
+      <h3 class="sub-h">הגדרות שכדאי לבדוק לפי יצרן</h3>
+      <div class="table-wrap"><table class="cmp">
+        <thead><tr><th>יצרן</th><th>מה לעשות</th></tr></thead>
+        <tbody>
+          <tr><td>Xiaomi / Redmi / POCO</td><td>הגדרות ← אפליקציות ← מסנן כשר ← <b>הפעלה אוטומטית</b> מופעל, ו<b>חיסכון בסוללה</b> על "ללא הגבלות".</td></tr>
+          <tr><td>Samsung</td><td>הגדרות ← סוללה ← <b>מגבלות שימוש ברקע</b> ← להוציא את מסנן כשר מ"אפליקציות רדומות".</td></tr>
+          <tr><td>Huawei / Honor</td><td>הגדרות ← סוללה ← הפעלת אפליקציות ← מסנן כשר ← <b>ניהול ידני</b>, הכל מופעל.</td></tr>
+          <tr><td>OnePlus / Oppo / Realme</td><td>הגדרות ← סוללה ← אופטימיזציית סוללה ← מסנן כשר ← <b>אל תבצע אופטימיזציה</b>.</td></tr>
+        </tbody></table></div>
+    </div>
+    <aside>
+      <div class="card"><h3>מה צריך</h3><ul><li>טלפון אנדרואיד 8 ומעלה</li><li>חיבור לאינטרנט להורדה</li><li>ברקוד מוסד או מפתח מנהל</li></ul></div>
+      <div class="card"><h3>מגבלות</h3><ul><li>החסימה מופיעה כמסך מעל האפליקציה</li><li>מי שמכיר אנדרואיד לעומק יכול לנסות לעקוף</li><li>להגנה מלאה: <a href="#owner">מנהל מכשיר</a></li></ul></div>
+    </aside>
+  </div>
+
+  <!-- ================= DEVICE OWNER ================= -->
+  <div class="guide" data-group="tier" data-pane="owner" hidden>
+    <div>
+      <h2>התקנה כמנהל מכשיר (Device Owner)</h2>
+      <p class="intro">המסנן מקבל שליטה ברמת המערכת. אפליקציות חסומות פשוט נעלמות, ואי אפשר להסיר את המסנן או לאפס את הטלפון בלי קוד מנהל.</p>
+      <div class="callout warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+        <div><b>שיטת ההתקנה הזו עדיין בפיתוח.</b> אפשר להשתמש במדריך, אבל היכולות של מצב "מנהל מכשיר" (הסתרה מלאה, חסימת איפוס) יופעלו בגרסת האפליקציה הבאה.</div></div>
+      <div class="callout danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+        <div>התהליך מתחיל <b>באיפוס הטלפון להגדרות יצרן</b>, שמוחק את כל המידע. גבו תמונות, אנשי קשר וצ'אטים לפני שמתחילים.</div></div>
+
+      <h3 class="sub-h">חלק א׳ · הכנת הטלפון</h3>
+      <ol class="steps">
+        <li><h4>איפוס להגדרות יצרן</h4><p>הגדרות ← מערכת ← אפשרויות איפוס ← <span class="kbd">מחיקת כל הנתונים</span>.</p></li>
+        <li><h4>אשף ההגדרה: בלי חשבון Google</h4><p>מתחברים ל-Wi-Fi, ובמסך חשבון Google לוחצים <span class="kbd">דילוג</span>. את החשבון מוסיפים בסוף. אנדרואיד לא מאפשר להגדיר מנהל מכשיר כשיש חשבון בטלפון.</p>
+          <ul><li>ב-Samsung: לא ליצור "תיקייה מאובטחת". ב-Xiaomi: לא להפעיל "מרחב שני".</li></ul></li>
+        <li><h4>הפעלת אפשרויות מפתחים</h4><p>הגדרות ← אודות הטלפון ← לוחצים 7 פעמים על <span class="kbd">מספר Build</span>. אחר כך: הגדרות ← מערכת ← אפשרויות מפתחים ← <span class="kbd">ניפוי באגים ב-USB</span>.</p></li>
+      </ol>
+
+      <h3 class="sub-h">חלק ב׳ · מהמחשב</h3>
+      <ol class="steps">
+        <li><h4>מתקינים את כלי ADB</h4>
+          <p>מורידים את <a href="https://developer.android.com/tools/releases/platform-tools" target="_blank" rel="noopener">SDK Platform-Tools</a> מגוגל ומחלצים לתיקייה. פותחים חלון פקודות בתוך התיקייה.</p></li>
+        <li><h4>מחברים את הטלפון בכבל</h4><p>בטלפון מאשרים "לאפשר ניפוי באגים". בודקים שהמחשב מזהה אותו:</p>
+          <div class="cmd"><span>adb devices</span></div></li>
+        <li><h4>מתקינים את האפליקציה</h4><p>מורידים את <a href="downloads/KosherGuard.apk">KosherGuard.apk</a> לאותה תיקייה ומריצים:</p>
+          <div class="cmd"><span>adb install KosherGuard.apk</span></div></li>
+        <li><h4>הופכים אותה למנהלת המכשיר</h4>
+          <div class="cmd"><span>adb shell dpm set-device-owner com.kosherguard.filter/.admin.AdminReceiver</span></div>
+          <p>אמורה להופיע ההודעה <code>Success: Device owner set</code>.</p></li>
+      </ol>
+
+      <h3 class="sub-h">חלק ג׳ · בטלפון</h3>
+      <ol class="steps">
+        <li><h4>פותחים את מסנן כשר וסורקים את ברקוד המוסד</h4><p>מכאן האפליקציה מגדירה הכל לבד: מכבה את ניפוי הבאגים, חוסמת איפוס ומצב בטוח, ומפעילה את הסינון.</p></li>
+        <li><h4>מוסיפים חשבון Google (אם רוצים)</h4><p>הגדרות ← חשבונות ← הוספת חשבון. Google Play יהיה זמין או חסום לפי המדיניות של המוסד.</p></li>
+      </ol>
+
+      <h3 class="sub-h">תקלות נפוצות</h3>
+      <div class="table-wrap"><table class="cmp trouble">
+        <thead><tr><th>ההודעה</th><th>הפתרון</th></tr></thead>
+        <tbody>
+          <tr><td>there are already some accounts on the device</td><td>הגדרות ← חשבונות: הסירו את כל החשבונות (גם Samsung ו-Xiaomi), הריצו שוב, והוסיפו אותם אחר כך.</td></tr>
+          <tr><td>there are already several users on the device</td><td>מחקו משתמשים נוספים, פרופיל עבודה, תיקייה מאובטחת או מרחב שני. אם לא עוזר, אפסו שוב.</td></tr>
+          <tr><td>device owner is already set</td><td>אפליקציה אחרת כבר מנהלת את הטלפון. צריך להסיר אותה או לאפס.</td></tr>
+          <tr><td>adb: command not found / no devices</td><td>ודאו שהחלון פתוח בתיקיית platform-tools, שהכבל תומך בנתונים ושאישרתם בטלפון.</td></tr>
+        </tbody></table></div>
+    </div>
+    <aside>
+      <div class="card"><h3>מה צריך</h3><ul><li>מחשב Windows, Mac או Linux</li><li>כבל USB שמעביר נתונים</li><li>טלפון אנדרואיד 9 ומעלה</li><li>15 דקות</li></ul></div>
+      <div class="card"><h3>מה מקבלים</h3><ul><li>חסימה בלי מסך קופץ</li><li>אי אפשר להסיר את המסנן</li><li>אי אפשר לאפס או לעבור למצב בטוח</li><li>התקנה שקטה מהחנות הכשרה</li><li>בנקים ו-Google ממשיכים לעבוד</li></ul></div>
+    </aside>
+  </div>
+
+  <!-- ================= ROM ================= -->
+  <div class="guide" data-group="tier" data-pane="rom" hidden>
+    <div>
+      <h2>התקנת מערכת ההפעלה הכשרה</h2>
+      <p class="intro">גרסת אנדרואיד (GSI) שהמסנן והחנות הכשרה בנויים בתוכה. מתאימה לרוב הטלפונים מ-2019 ואילך שתומכים ב-Project Treble.</p>
+      <div class="callout warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+        <div><b>מערכת ההפעלה עדיין בבנייה ובבדיקות באמולטור.</b> קובץ ההתקנה יפורסם כאן כשיהיה מוכן. המדריך מתאר את התהליך המלא.</div></div>
+      <div class="callout danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+        <div>התקנת מערכת הפעלה מוחקת את כל המידע ודורשת פתיחת bootloader. אחרי ההתקנה חלק מאפליקציות הבנקים ו-Google Wallet עלולות לא לעבוד. בצעו רק אם אתם מבינים את הסיכון.</div></div>
+
+      <h3 class="sub-h">חלק א׳ · בדיקת התאמה</h3>
+      <ol class="steps">
+        <li><h4>בודקים תמיכה ב-Treble</h4><p>מתקינים מ-Google Play את האפליקציה <b>Treble Info</b>. צריך לראות: <code>Project Treble: supported</code>, ארכיטקטורה <code>arm64</code>, ו-<code>Seamless system updates</code> (A/B או A-only).</p></li>
+        <li><h4>בודקים שאפשר לפתוח bootloader</h4>
+          <ul>
+            <li><b>Pixel, Motorola, Nothing, Sony:</b> פתיחה פשוטה דרך fastboot.</li>
+            <li><b>Xiaomi:</b> דרך Mi Unlock, עם המתנה של כמה ימים.</li>
+            <li><b>OnePlus:</b> פתיחה פשוטה. בדגמים חדשים צריך לבקש קוד מהיצרן.</li>
+            <li><b>Samsung:</b> לא מומלץ. רוב הדגמים בארץ נעולים לחלוטין.</li>
+          </ul></li>
+      </ol>
+
+      <h3 class="sub-h">חלק ב׳ · פתיחת bootloader</h3>
+      <ol class="steps">
+        <li><h4>מפעילים OEM Unlocking</h4><p>אפשרויות מפתחים ← <span class="kbd">ביטול נעילת OEM</span> מופעל, ו<span class="kbd">ניפוי באגים ב-USB</span> מופעל.</p></li>
+        <li><h4>נכנסים ל-bootloader ופותחים</h4>
+          <div class="cmd"><span>adb reboot bootloader</span></div>
+          <div class="cmd"><span>fastboot flashing unlock</span></div>
+          <p>בטלפון בוחרים בכפתורי עוצמת השמע <b>Unlock</b> ומאשרים בכפתור ההפעלה. הטלפון יימחק.</p></li>
+      </ol>
+
+      <h3 class="sub-h">חלק ג׳ · צריבת המערכת</h3>
+      <ol class="steps">
+        <li><h4>מורידים את הקבצים</h4><p><code>kosheros-arm64.img</code> ו-<code>vbmeta.img</code> <span class="pill warn">בקרוב</span>, לתיקיית platform-tools.</p></li>
+        <li><h4>עוברים ל-fastbootd</h4>
+          <div class="cmd"><span>fastboot reboot fastboot</span></div></li>
+        <li><h4>מבטלים אימות ומוחקים את המערכת הישנה</h4>
+          <div class="cmd"><span>fastboot --disable-verity --disable-verification flash vbmeta vbmeta.img</span></div>
+          <div class="cmd"><span>fastboot erase system</span></div></li>
+        <li><h4>צורבים ומאפסים נתונים</h4>
+          <div class="cmd"><span>fastboot flash system kosheros-arm64.img</span></div>
+          <div class="cmd"><span>fastboot -w</span></div>
+          <div class="cmd"><span>fastboot reboot</span></div>
+          <p>ההפעלה הראשונה יכולה לקחת עד 5 דקות.</p></li>
+        <li><h4>הגדרה ראשונה</h4><p>מסנן כשר כבר מותקן כחלק מהמערכת. במסך הפתיחה סורקים את ברקוד המוסד, וזהו.</p></li>
+      </ol>
+
+      <h3 class="sub-h">רוצים לנסות בלי טלפון?</h3>
+      <p class="muted">אפשר להריץ את מערכת ההפעלה באמולטור של Android Studio במחשב. קובץ תמונה לאמולטור (x86_64) יפורסם יחד עם הגרסה לטלפונים.</p>
+    </div>
+    <aside>
+      <div class="card"><h3>מה צריך</h3><ul><li>טלפון עם Treble ו-arm64</li><li>bootloader שאפשר לפתוח</li><li>מחשב עם Platform-Tools</li><li>30–60 דקות</li></ul></div>
+      <div class="card"><h3>מה מקבלים</h3><ul><li>המסנן הוא חלק מהמערכת</li><li>החנות הכשרה מובנית</li><li>Google Play לפי בחירת המוסד</li><li>אין דרך לעקוף מתוך הטלפון</li></ul></div>
+    </aside>
+  </div>
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <a class="brand" href="./"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>מסנן כשר</a>
+    <nav><a href="./">ראשי</a><a href="portal/">פורטל מוסדות</a><a href="admin/">כלי ניהול אופליין</a><a href="privacy.html">פרטיות</a></nav>
+  </div>
+</footer>
+<script src="assets/site.js"></script>
+</body>
+</html>
