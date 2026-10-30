@@ -912,7 +912,7 @@ async function renderCodes() {
   main(loadingHtml);
   const [keys, devSnap] = await Promise.all([getKeys(), getDocs(query(collection(db, "devices"), where("instId", "==", S.inst.id)))]);
   if (!keys) return;
-  const devices = devSnap.docs.map((d) => d.data()).sort((a, b) => (a.studentName || a.label || "").localeCompare(b.studentName || b.label || "", "he"));
+  const devices = devSnap.docs.map((d) => d.data()).filter((d) => d.label).sort((a, b) => (a.studentName || a.label || "").localeCompare(b.studentName || b.label || "", "he"));
   main(head("קודי שחרור", "עובד גם כשהטלפון לא מחובר לאינטרנט") + `
     <div class="grid-2" style="align-items:start">
       <div class="panel"><div class="panel-body stack">
@@ -929,12 +929,7 @@ async function renderCodes() {
           <li><h4>התלמיד מבקש</h4><p>בטלפון לוחצים "בקשת שחרור", ומופיע קוד אתגר בן 6 ספרות.</p></li>
           <li><h4>אתם מחשבים</h4><p>בוחרים את המכשיר ומקלידים את הקוד. הקוד מחושב כאן בדפדפן ולא נשלח לשום שרת.</p></li>
           <li><h4>מוסרים את התשובה</h4><p>8 ספרות, בטלפון, בהודעה או בעל פה. הקוד טוב פעם אחת ורק למכשיר הזה.</p></li>
-        </ol>
-        <details class="faq" style="margin-top:14px"><summary>מפתח השחרור של המוסד (לכלי האופליין)</summary>
-          <p>אפשר להזין אותו ב<a href="../admin/" target="_blank">כלי הניהול האופליין</a>. אל תשתפו אותו.</p>
-          <div class="secret" id="cSecret">••••-••••-••••</div>
-          <div class="row-actions" style="margin:10px 0 16px"><button class="btn sm ghost" id="cReveal">${ic("eye")}הצגה</button><button class="btn sm ghost" id="cCopySecret">${ic("copy")}העתקה</button></div>
-        </details></div></div>
+        </ol></div></div>
     </div>`);
   const calc = async () => {
     const manual = $("cDev").value === "__manual";
@@ -950,8 +945,6 @@ async function renderCodes() {
   $("cDev").addEventListener("change", calc);
   calc();
   $("cCopy").onclick = () => copy($("cOut").textContent);
-  $("cReveal").onclick = () => { $("cSecret").textContent = keys.masterSecret; };
-  $("cCopySecret").onclick = () => copy(keys.masterSecret);
 }
 
 // ----- Staff --------------------------------------------------------------

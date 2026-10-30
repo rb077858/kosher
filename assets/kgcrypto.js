@@ -1,5 +1,5 @@
-// Offline-unlock crypto for the portal. Must stay byte-identical with AdminKeyManager.kt,
-// kosherguard_admin.py and admin/index.html (same functions, copied as an ES module).
+// Offline-unlock crypto for the portal. Must stay byte-identical with AdminKeyManager.kt
+// and kosherguard_admin.py.
 const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
 export function base32Encode(bytes) {

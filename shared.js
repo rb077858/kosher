@@ -1,5 +1,5 @@
-// Shared helpers for the admin page (admin/index.html): small DOM/storage helpers,
-// the built-in app catalog and the names of well-known apps.
+// Shared helpers for the portal: QR rendering, the built-in app catalog and the names of
+// well-known apps (classic script; portal.js uses these globals).
 
 const $ = (id) => document.getElementById(id);
 

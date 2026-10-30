@@ -1,5 +1,4 @@
-/* Shared design system for the public site (index, install, portal). The legacy offline
-   admin tool (admin/) keeps its own style.css. */
+/* Shared design system for the whole site (index, install, privacy, portal). */
 :root {
   --bg: #f6f7fb;
   --surface: #ffffff;
