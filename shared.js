@@ -26,6 +26,8 @@ function copyText(text) {
 
 /** Medium error correction when it fits, else Low (holds ~25% more). Throws if even that's too long. */
 function makeQr(text) {
+  // The library's default keeps only the low byte of each character, which garbles Hebrew.
+  qrcode.stringToBytes = qrcode.stringToBytesFuncs["UTF-8"];
   for (const level of ["M", "L"]) {
     try {
       const qr = qrcode(0, level);

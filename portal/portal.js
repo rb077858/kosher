@@ -114,6 +114,7 @@ const DEFAULT_SETTINGS = {
   profileId: "recommended", customCategoryIds: [], customAppPackages: [], filteringEnabled: true,
   downtimeEnabled: false, downtimeStartMinutes: 22 * 60, downtimeEndMinutes: 7 * 60,
   dailyDeviceLimitEnabled: false, dailyDeviceLimitMinutes: 120, essentialAppPackages: [],
+  blockedDomains: [], adBlock: false, dnsServer: "", vpnEnabled: true,
 };
 const DEFAULT_TELEMETRY = { reportDomains: true, reportApps: true, intervalMinutes: 5 };
 
@@ -228,9 +229,9 @@ function route() {
   if (!S.user || $("viewApp").hidden) return;
   closeDrawer();
   clearSubs();
-  const [a, b, c] = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  const [a, b, c, d] = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   if (!S.isSuper && (a !== "inst" || b !== S.manager.instId)) return go(`inst/${S.manager.instId}/devices`);
-  if (a === "inst" && b) return renderInstitution(b, c || "devices");
+  if (a === "inst" && b) return renderInstitution(b, c || "devices", d);
   if (a === "institutions") return renderInstitutions();
   if (a === "managers") return renderManagers();
   if (a === "overview") return renderOverview();
@@ -469,7 +470,7 @@ const INST_TABS = [
   { id: "info", icon: "info", label: "פרטי המוסד" },
 ];
 
-function renderInstitution(instId, tab) {
+function renderInstitution(instId, tab, arg) {
   main(loadingHtml);
   let first = true;
   S.subs.push(onSnapshot(doc(db, "institutions", instId), (snap) => {
@@ -480,7 +481,7 @@ function renderInstitution(instId, tab) {
       ...(S.isSuper ? [{ href: "institutions", icon: "back", label: "כל המוסדות" }, "-"] : []),
       ...tabs.map((t) => ({ href: `inst/${instId}/${t.id}`, icon: t.icon, label: t.label, on: t.id === tab })),
     ], { label: S.isSuper ? "מוסד" : (S.manager.role === "owner" ? "מנהל מוסד" : "צוות"), title: S.inst.name });
-    if (first) { first = false; (TAB_RENDER[tab] || TAB_RENDER.devices)(); }
+    if (first) { first = false; (TAB_RENDER[tab] || TAB_RENDER.devices)(arg); }
   }, fail));
 }
 
@@ -622,6 +623,7 @@ function buildDrawer(d) {
         <div class="field"><label>כיתה</label><input class="input" name="className"></div>
         <div class="field full"><label>הערות</label><textarea class="input" name="notes" rows="2"></textarea></div>
         <div class="full row-actions"><button class="btn sm" type="submit">שמירה</button>
+          <button class="btn sm ghost" type="button" id="dPolicy">${ic("sliders")}חסימות לתלמיד הזה</button>
           <button class="btn sm danger" type="button" id="dRemove">${ic("trash")}הסרת המכשיר מהמוסד</button></div></form></div>
     </div>`;
 
@@ -636,6 +638,7 @@ function buildDrawer(d) {
     } catch (err) { fail(err); }
   };
   $("dRemove").onclick = () => removeDevice(d);
+  $("dPolicy").onclick = () => go(`inst/${S.inst.id}/policy/${encodeURIComponent("device:" + d.id)}`);
 
   $("dChallenge").oninput = async (e) => {
     const ch = e.target.value.replace(/\D/g, "");
@@ -734,7 +737,7 @@ function updateDrawer(d) {
 }
 
 async function removeDevice(d) {
-  if (!confirm(`להסיר את "${d.studentName || d.label}" מהמוסד? המקום שלו במכסה יתפנה. האפליקציה בטלפון תצטרך רישום מחדש.`)) return;
+  if (!confirm(`להסיר את "${d.studentName || d.label}" מהמוסד?\n\nהסינון יוסר מהטלפון (מיד, או כשיתחבר לאינטרנט) והאפליקציה תחזור למסך הפתיחה. המקום שלו במכסה יתפנה.`)) return;
   try {
     const refs = [];
     for (const sub of ["logs", "commands"]) (await getDocs(collection(db, "devices", d.id, sub))).forEach((x) => refs.push(x.ref));
@@ -745,8 +748,10 @@ async function removeDevice(d) {
       refs.slice(i, i + 400).forEach((r) => b.delete(r));
       await b.commit();
     }
+    // The student's own policy layer, if any (needs the editPolicy permission, so not in the batch).
+    deleteDoc(doc(db, "institutions", d.instId, "public", deviceDocId(d.id))).catch(() => {});
     closeDrawer();
-    toast("המכשיר הוסר");
+    toast("המכשיר הוסר. הסינון יוסר מהטלפון");
   } catch (e) { fail(e); }
 }
 
@@ -774,7 +779,9 @@ async function renderEnroll() {
   const payload = JSON.stringify({
     kgSettings: 1,
     masterSecret: keys.masterSecret,
-    settings: policy.settings,
+    // The phone pulls the policy from the server right after enrolling; keeping it out of the QR
+    // keeps the code small however long the blocklists grow.
+    settings: {},
     cloud: { p: FIREBASE_CONFIG.projectId, i: inst.id, t: keys.enrollToken, n: inst.name },
   });
   const left = Math.max(0, (inst.maxStudents || 0) - used);
@@ -811,15 +818,132 @@ async function renderEnroll() {
 }
 
 // ----- Policy -------------------------------------------------------------
-async function renderPolicy() {
+// Three layers, merged on the phone (app cloud/PolicyMerge.kt): the whole institution
+// (public/policy), a class (public/class-<name>) and a student (public/device-<uid>). Class and
+// student layers ADD blocked apps/sites and may switch the ad blocker on or off.
+const classDocId = (name) => "class-" + name.trim().replace(/\//g, "_");
+const deviceDocId = (id) => "device-" + id;
+
+function normalizeDomains(text) {
+  const good = [], bad = [];
+  text.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean).forEach((raw) => {
+    const host = raw.toLowerCase().replace(/^[a-z]+:\/\//, "").replace(/[/?#:].*$/, "").replace(/^www\./, "").replace(/\.$/, "");
+    if (/^([a-z0-9-]+\.)+[a-z0-9-]{2,}$/.test(host)) good.push(host); else bad.push(raw);
+  });
+  return { good, bad };
+}
+
+/** Chip list editor for apps ("apps") or websites ("sites"); returns a getter for the current list. */
+function chipEditor(container, kind, initial, readOnly) {
+  const list = [...initial];
+  const id = "ce" + Math.random().toString(36).slice(2, 8);
+  container.innerHTML = `<div class="chips" id="${id}_chips"></div>
+    ${readOnly ? "" : `<div style="display:flex;gap:8px;margin-top:10px">
+      <input class="input${kind === "sites" ? " ltr" : ""}" id="${id}_in" ${kind === "apps" ? 'list="pkgList" placeholder="שם אפליקציה או חבילה"' : 'placeholder="example.com"'}>
+      <button type="button" class="btn sm ghost" id="${id}_add">${ic("plus")}</button></div>`}`;
+  const draw = () => {
+    $(id + "_chips").innerHTML = list.map((v, i) => `<span class="chip${kind === "sites" ? " mono" : ""}" title="${esc(v)}">${esc(kind === "apps" ? appLabel(v) : v)}${readOnly ? "" : `<button type="button" data-i="${i}">×</button>`}</span>`).join("")
+      || '<span class="muted small">אין</span>';
+  };
+  draw();
+  if (!readOnly) {
+    $(id + "_chips").onclick = (e) => { const b = e.target.closest("[data-i]"); if (b) { list.splice(+b.dataset.i, 1); draw(); } };
+    const add = () => {
+      const inp = $(id + "_in");
+      const { good, bad } = kind === "apps" ? resolveApps(inp.value, CATALOG) : normalizeDomains(inp.value);
+      good.forEach((v) => { if (!list.includes(v)) list.push(v); });
+      inp.value = bad.join(", ");
+      if (bad.length) toast("לא זוהו: " + bad.join(", "), true);
+      draw();
+    };
+    $(id + "_add").onclick = add;
+    $(id + "_in").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); add(); } };
+  }
+  return () => list;
+}
+
+async function renderPolicy(scopeParam) {
   main(loadingHtml);
-  const policy = await getPolicy();
+  const scope = decodeURIComponent(scopeParam || "school");
+  const devSnap = await getDocs(query(collection(db, "devices"), where("instId", "==", S.inst.id)));
+  const devices = devSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.studentName || a.label || "").localeCompare(b.studentName || b.label || "", "he"));
+  const classes = [...new Set(devices.map((d) => (d.className || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "he"));
+
+  let kind = "school", docId = "policy", title = "כל המוסד", target = "";
+  if (scope.startsWith("class:")) { kind = "class"; target = scope.slice(6); docId = classDocId(target); title = "כיתה " + target; }
+  if (scope.startsWith("device:")) {
+    kind = "device"; target = scope.slice(7); docId = deviceDocId(target);
+    const d = devices.find((x) => x.id === target);
+    title = d ? (d.studentName || d.label) + (d.className ? " · " + d.className : "") : "תלמיד";
+  }
+  const ro = !can("editPolicy");
+  const snap = await getDoc(doc(db, "institutions", S.inst.id, "public", docId));
+  const data = snap.exists() ? snap.data() : {};
+  const go2 = (s) => go(`inst/${S.inst.id}/policy/${encodeURIComponent(s)}`);
+
+  const scopeBar = `<div class="panel" style="margin-bottom:18px"><div class="panel-body" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <span class="muted small" style="font-weight:600">חל על:</span>
+    <button type="button" class="btn sm ${kind === "school" ? "" : "ghost"}" id="scSchool">${ic("building")}כל המוסד</button>
+    <select class="input" id="scClass" style="width:auto;min-width:150px;padding:8px 12px"><option value="">כיתה…</option>
+      ${classes.map((c) => `<option ${kind === "class" && target === c ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>
+    <select class="input" id="scDevice" style="width:auto;min-width:170px;padding:8px 12px"><option value="">תלמיד…</option>
+      ${devices.map((d) => `<option value="${esc(d.id)}" ${kind === "device" && target === d.id ? "selected" : ""}>${esc(d.studentName || d.label || d.id)}${d.className ? " · " + esc(d.className) : ""}</option>`).join("")}</select>
+    ${classes.length ? "" : '<span class="muted small">כיתות מופיעות כאן אחרי שמכשירים נרשמים עם שם כיתה</span>'}
+  </div></div>`;
+
+  const sitesPanel = (titleText, hint) => `<div class="panel"><div class="panel-head"><h2>${titleText}</h2></div><div class="panel-body">
+    <p class="muted small" style="margin:0 0 10px">${hint}</p><div id="sitesBox"></div></div></div>`;
+  const appsPanel = (titleText) => `<div class="panel"><div class="panel-head"><h2>${titleText}</h2></div><div class="panel-body"><div id="appsBox"></div></div></div>`;
+  const datalist = `<datalist id="pkgList">${Object.keys(APP_NAMES).map((p) => `<option value="${esc(p)}" label="${esc(appLabel(p))}">`).join("")}</datalist>`;
+
+  if (kind !== "school") {
+    const s = data.settings || {};
+    const adState = s.adBlock === true ? "on" : s.adBlock === false ? "off" : "inherit";
+    main(head("מדיניות סינון", `${esc(title)} · נוסף על המדיניות של כל המוסד`,
+      ro ? '<span class="pill warn">צפייה בלבד</span>'
+        : `${snap.exists() ? `<button class="btn ghost" id="btnClearScope">${ic("trash")}ביטול ההגדרות האלה</button>` : ""}<button class="btn" id="btnSavePolicy">שמירה ושליחה</button>`) + scopeBar + `
+      <form id="pol" class="stack">
+        <div class="callout">${ic("info")}<div>מה שמוגדר כאן <b>נוסף</b> על החסימות של כל המוסד${kind === "device" ? " ושל הכיתה" : ""}. אי אפשר לפתוח כאן משהו שהמוסד חסם.</div></div>
+        <div class="grid-2">
+          ${appsPanel("אפליקציות חסומות נוספות")}
+          ${sitesPanel("אתרים חסומים נוספים", "כתובת אתר, למשל youtube.com. נחסמים גם כל תתי-האתרים שלו.")}
+        </div>
+        <div class="panel"><div class="panel-head"><h2>חוסם פרסומות</h2></div><div class="panel-body grid-3" style="gap:10px">
+          ${[["inherit", "כמו במוסד", "לפי ההגדרה של כל המוסד"], ["on", "מופעל", "חוסם פרסומות ואתרים לא ראויים"], ["off", "כבוי", "בלי חוסם פרסומות"]].map(([v, t, d]) =>
+            `<label class="check"><input type="radio" name="adBlock" value="${v}" ${adState === v ? "checked" : ""}><span><b>${t}</b><small>${d}</small></span></label>`).join("")}
+        </div></div>
+        ${datalist}
+      </form>`);
+    const getApps = chipEditor($("appsBox"), "apps", s.customAppPackages || [], ro);
+    const getSites = chipEditor($("sitesBox"), "sites", s.blockedDomains || [], ro);
+    bindScopeBar(go2);
+    if (ro) { $("pol").querySelectorAll("input").forEach((x) => (x.disabled = true)); return; }
+    $("btnSavePolicy").onclick = async () => {
+      const ad = $("pol").adBlock.value;
+      const settings = { customAppPackages: getApps(), blockedDomains: getSites(), ...(ad === "inherit" ? {} : { adBlock: ad === "on" }) };
+      try {
+        await setDoc(doc(db, "institutions", S.inst.id, "public", docId), {
+          scope: kind, target, settings, updatedAt: serverTimestamp(), updatedBy: S.email,
+        });
+        toast("נשמר. המכשירים יתעדכנו תוך שניות");
+        renderPolicy(scopeParam);
+      } catch (e) { fail(e); }
+    };
+    const clr = $("btnClearScope");
+    if (clr) clr.onclick = async () => {
+      if (!confirm(`לבטל את כל ההגדרות המיוחדות של ${title}?`)) return;
+      try { await deleteDoc(doc(db, "institutions", S.inst.id, "public", docId)); toast("בוטל"); renderPolicy(scopeParam); } catch (e) { fail(e); }
+    };
+    return;
+  }
+
+  // ---- Whole institution ----
+  const policy = snap.exists() ? data : { settings: DEFAULT_SETTINGS, telemetry: DEFAULT_TELEMETRY, version: 0 };
   const s = { ...DEFAULT_SETTINGS, ...policy.settings };
   const tel = { ...DEFAULT_TELEMETRY, ...policy.telemetry };
-  const ro = !can("editPolicy");
-  const lists = { customAppPackages: [...s.customAppPackages], essentialAppPackages: [...s.essentialAppPackages] };
-  main(head("מדיניות סינון", `חלה על כל מכשירי המוסד · גרסה ${policy.version || 0}${policy.updatedBy ? " · עודכנה על ידי " + esc(policy.updatedBy) : ""}`,
-    ro ? '<span class="pill warn">צפייה בלבד</span>' : `<button class="btn" id="btnSavePolicy">שמירה ושליחה למכשירים</button>`) + `
+  main(head("מדיניות סינון", `כל המוסד · גרסה ${policy.version || 0}${policy.updatedBy ? " · עודכנה על ידי " + esc(policy.updatedBy) : ""}`,
+    ro ? '<span class="pill warn">צפייה בלבד</span>' : `<button class="btn" id="btnSavePolicy">שמירה ושליחה למכשירים</button>`) + scopeBar + `
     <form id="pol" class="stack">
       <label class="check"><input type="checkbox" name="filteringEnabled" ${s.filteringEnabled ? "checked" : ""}><span><b>הסינון פעיל</b><small>כיבוי משבית את כל החסימות בכל המכשירים</small></span></label>
       <div class="panel"><div class="panel-head"><h2>פרופיל חסימה</h2></div><div class="panel-body grid-2" style="gap:10px">
@@ -829,11 +953,17 @@ async function renderPolicy() {
         ${CATALOG.categories.map((c) => `<label class="check"><input type="checkbox" name="cat" value="${c.id}" ${s.customCategoryIds.includes(c.id) ? "checked" : ""}><span><b>${esc(c.title)}</b></span></label>`).join("")}
       </div></div></div></div>
       <div class="grid-2">
-        ${["customAppPackages", "essentialAppPackages"].map((key) => `<div class="panel"><div class="panel-head"><h2>${key === "customAppPackages" ? "אפליקציות חסומות נוספות" : "אפליקציות חיוניות (תמיד מותרות)"}</h2></div>
-          <div class="panel-body stack" style="gap:10px"><div class="chips" id="chips_${key}"></div>
-          <div style="display:flex;gap:8px"><input class="input" id="add_${key}" list="pkgList" placeholder="שם אפליקציה או חבילה"><button type="button" class="btn sm ghost" data-add="${key}">${ic("plus")}</button></div></div></div>`).join("")}
+        ${appsPanel("אפליקציות חסומות נוספות")}
+        <div class="panel"><div class="panel-head"><h2>אפליקציות חיוניות (תמיד מותרות)</h2></div><div class="panel-body"><div id="essBox"></div></div></div>
       </div>
-      <datalist id="pkgList">${Object.keys(APP_NAMES).map((p) => `<option value="${esc(p)}" label="${esc(appLabel(p))}">`).join("")}</datalist>
+      ${sitesPanel("אתרים חסומים", "כתובת אתר, למשל youtube.com. נחסמים גם כל תתי-האתרים שלו, בכל הדפדפנים והאפליקציות.")}
+      <div class="panel"><div class="panel-head"><h2>סינון אינטרנט</h2></div><div class="panel-body stack" style="gap:10px">
+        <label class="check"><input type="checkbox" name="adBlock" ${s.adBlock ? "checked" : ""}><span><b>חוסם פרסומות</b><small>חוסם פרסומות ואתרים לא ראויים בכל המכשירים. אפשר להפעיל או לכבות גם לכיתה או לתלמיד מסוים.</small></span></label>
+        <details class="faq" style="margin:0"><summary>שרת DNS מותאם (מתקדם)</summary>
+          <p>כתובת DNS-over-HTTPS שדרכה יעברו כל שאילתות הרשת במכשירים, במקום שרת הסינון המובנה. השאירו ריק לשימוש בברירת המחדל.</p>
+          <input class="input ltr" name="dnsServer" placeholder="https://dns.example.com/dns-query" value="${esc(s.dnsServer || "")}" style="margin-bottom:16px">
+        </details>
+      </div></div>
       <div class="grid-2">
         <div class="panel"><div class="panel-head"><h2>שעות שינה</h2></div><div class="panel-body stack" style="gap:10px">
           <label class="check"><input type="checkbox" name="downtimeEnabled" ${s.downtimeEnabled ? "checked" : ""}><span><b>חסימה בשעות קבועות</b><small>רק האפליקציות החיוניות זמינות</small></span></label>
@@ -849,37 +979,30 @@ async function renderPolicy() {
         <div class="field"><label>תדירות דיווח</label><select class="input" name="intervalMinutes">
           ${[5, 10, 15, 30].map((m) => `<option value="${m}" ${tel.intervalMinutes === m ? "selected" : ""}>כל ${m} דקות</option>`).join("")}</select></div>
       </div></div>
+      ${datalist}
     </form>`);
   const f = $("pol");
   const syncCats = () => { $("customCats").hidden = f.profileId.value !== "custom"; };
   f.addEventListener("change", syncCats); syncCats();
-  const drawChips = (key) => {
-    $("chips_" + key).innerHTML = lists[key].map((p, i) => `<span class="chip" title="${esc(p)}">${esc(appLabel(p))}${ro ? "" : `<button type="button" data-rm="${key}:${i}">×</button>`}</span>`).join("")
-      || '<span class="muted small">אין</span>';
-  };
-  Object.keys(lists).forEach(drawChips);
-  f.addEventListener("click", (e) => {
-    const rm = e.target.closest("[data-rm]");
-    if (rm) { const [k, i] = rm.dataset.rm.split(":"); lists[k].splice(+i, 1); drawChips(k); }
-    const add = e.target.closest("[data-add]");
-    if (add) {
-      const k = add.dataset.add, inp = $("add_" + k);
-      const { good, bad } = resolveApps(inp.value, CATALOG);
-      good.forEach((p) => { if (!lists[k].includes(p)) lists[k].push(p); });
-      inp.value = bad.join(", ");
-      if (bad.length) toast("לא זוהו: " + bad.join(", "), true);
-      drawChips(k);
-    }
-  });
-  if (ro) { f.querySelectorAll("input,select,button").forEach((x) => (x.disabled = true)); return; }
+  const getApps = chipEditor($("appsBox"), "apps", s.customAppPackages || [], ro);
+  const getEssential = chipEditor($("essBox"), "apps", s.essentialAppPackages || [], ro);
+  const getSites = chipEditor($("sitesBox"), "sites", s.blockedDomains || [], ro);
+  bindScopeBar(go2);
+  if (ro) { f.querySelectorAll("input,select").forEach((x) => (x.disabled = true)); return; }
   $("btnSavePolicy").onclick = async () => {
+    const dns = f.dnsServer.value.trim();
+    if (dns && !/^https:\/\/[^\s/]+\.[^\s/]+\/\S*$/.test(dns)) return toast("כתובת שרת ה-DNS צריכה להתחיל ב-https:// ולכלול נתיב", true);
     const settings = {
       ...policy.settings,
       filteringEnabled: f.filteringEnabled.checked,
       profileId: f.profileId.value,
       customCategoryIds: [...f.querySelectorAll('input[name="cat"]:checked')].map((x) => x.value),
-      customAppPackages: lists.customAppPackages,
-      essentialAppPackages: lists.essentialAppPackages,
+      customAppPackages: getApps(),
+      essentialAppPackages: getEssential(),
+      blockedDomains: getSites(),
+      adBlock: f.adBlock.checked,
+      dnsServer: dns,
+      vpnEnabled: true,
       downtimeEnabled: f.downtimeEnabled.checked,
       downtimeStartMinutes: timeToMinutes(f.downtimeStart.value),
       downtimeEndMinutes: timeToMinutes(f.downtimeEnd.value),
@@ -892,9 +1015,15 @@ async function renderPolicy() {
         settings, telemetry, version: (policy.version || 0) + 1, updatedAt: serverTimestamp(), updatedBy: S.email,
       });
       toast("המדיניות נשמרה. מכשירים מחוברים יתעדכנו תוך שניות");
-      renderPolicy();
+      renderPolicy(scopeParam);
     } catch (e) { fail(e); }
   };
+}
+
+function bindScopeBar(go2) {
+  $("scSchool").onclick = () => go2("school");
+  $("scClass").onchange = (e) => { if (e.target.value) go2("class:" + e.target.value); };
+  $("scDevice").onchange = (e) => { if (e.target.value) go2("device:" + e.target.value); };
 }
 
 // ----- Unlock codes -------------------------------------------------------
