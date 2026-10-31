@@ -109,6 +109,7 @@ function deviceIssues(d) {
   if (p.notifications === false) out.push("ההתראות כבויות");
   if (p.clock === false) out.push("השעה שונתה");
   if (d.replacedLater) out.push("האפליקציה נמחקה ונרשמה מחדש");
+  if (d.localChanges?.length) out.push("שונה ידנית בטלפון: " + localChangesText(d));
   // Reported by the phone the moment it happened (admin revoked, a data-wipe attempt, …).
   const alert = d.lastAlert;
   if (alert?.text && alert.at && Date.now() - ms(alert.at) < 24 * 3600e3 && !out.includes(alert.text)) {
@@ -119,6 +120,21 @@ function deviceIssues(d) {
   return out;
 }
 const SILENT_MS = 2 * 60 * 60 * 1000;
+
+// Settings changed on the phone itself (during an admin unlock) — reported as localChanges keys.
+const LOCAL_CHANGE_LABELS = {
+  profileId: "חבילת סינון", customCategoryIds: "קטגוריות", customAppPackages: "אפליקציות חסומות",
+  filteringEnabled: "הסינון", playStore: "Google Play", blockedDomains: "אתרים חסומים", adBlock: "חוסם פרסומות",
+  dnsServer: "שרת DNS", vpnEnabled: "סינון אתרים", downtimeEnabled: "שעות שינה", downtimeStartMinutes: "שעות שינה",
+  downtimeEndMinutes: "שעות שינה", dailyDeviceLimitEnabled: "מגבלת זמן", dailyDeviceLimitMinutes: "מגבלת זמן",
+  essentialCountsTowardTime: "ספירת זמן", autoUpdate: "עדכון אוטומטי",
+};
+
+function localChangesText(d) {
+  const labels = [...new Set((d.localChanges || []).map((k) => LOCAL_CHANGE_LABELS[k] || k))];
+  const profile = (d.localChanges || []).includes("profileId") && CATALOG.profiles.find((p) => p.id === d.profileId);
+  return labels.map((l) => (l === "חבילת סינון" && profile ? `${l} (${profile.title})` : l)).join(", ");
+}
 
 /**
  * The same physical phone (same androidId — it survives uninstalling and wiping the app)
@@ -162,10 +178,10 @@ async function reconnectDevice(d) {
   openModal(`חיבור מחדש · ${d.studentName || d.label}`, `
     <div class="qr-box" id="rcQr"></div>
     <ol class="steps" style="gap:8px">
-      <li><h4>בטלפון</h4><p>פותחים את מסנן כשר ← "רישום למוסד" ← <b>"חיבור מחדש"</b> (בלי להקליד שם וכיתה).</p></li>
+      <li><h4>בטלפון</h4><p>פותחים את מסנן כשר ← "רישום למוסד הלימודים" ← <b>"חיבור מחדש"</b> (בלי להקליד שם וכיתה).</p></li>
       <li><h4>סורקים</h4><p>את הברקוד הזה. הטלפון חוזר לרשומה של התלמיד, עם כל ההגדרות שלו.</p></li>
     </ol>
-    <p class="muted small" style="margin:0">הקוד טוב לפעם אחת, במשך 24 שעות. הוא מכיל את מפתח המוסד, אל תשלחו אותו לתלמיד.</p>`,
+    <p class="muted small" style="margin:0">הקוד טוב לפעם אחת, במשך 24 שעות. הוא מכיל את מפתח מוסד הלימודים, אל תשלחו אותו לתלמיד.</p>`,
   async () => {}, "סגירה");
   try { $("rcQr").innerHTML = makeQr(payload).createSvgTag({ cellSize: 5, margin: 6 }); }
   catch { $("rcQr").textContent = "לא ניתן ליצור ברקוד"; }
@@ -174,8 +190,8 @@ const PERMS = {
   monitoring: ["ניטור פעילות", "צפייה באתרים ובאפליקציות שהתלמיד השתמש בהם"],
   liveView: ["צפייה חיה", "עדכון מצב המכשיר כל כמה שניות לפי בקשה"],
   remoteCommands: ["פקודות מרחוק", "שחרור אפליקציה, סנכרון, נעילה והודעות"],
-  editPolicy: ["עריכת מדיניות", "שינוי מה חסום במכשירי המוסד"],
-  manageStaff: ["ניהול צוות", "הוספת אנשי צוות נוספים למוסד"],
+  editPolicy: ["עריכת מדיניות", "שינוי מה חסום במכשירי מוסד הלימודים"],
+  manageStaff: ["ניהול צוות", "הוספת אנשי צוות נוספים למוסד הלימודים"],
 };
 const DEFAULT_SETTINGS = {
   profileId: "recommended", customCategoryIds: [], customAppPackages: [], filteringEnabled: true,
@@ -409,17 +425,17 @@ function editInstitution(inst) {
   const p = inst?.permissions || { monitoring: true, liveView: true, remoteCommands: true, editPolicy: true, manageStaff: true };
   openModal(inst ? "עריכת מוסד" : "מוסד חדש", `
     <div class="form-grid">
-      <div class="field full"><label>שם המוסד</label><input class="input" name="name" required value="${esc(inst?.name)}" placeholder="לדוגמה: ישיבת אור התורה"></div>
+      <div class="field full"><label>שם מוסד הלימודים</label><input class="input" name="name" required value="${esc(inst?.name)}" placeholder="לדוגמה: ישיבת אור התורה"></div>
       <div class="field"><label>עיר</label><input class="input" name="city" value="${esc(inst?.city)}"></div>
       <div class="field"><label>מכסת תלמידים</label><input class="input" name="maxStudents" type="number" min="0" max="99999" required value="${inst?.maxStudents ?? 50}"></div>
       <div class="field"><label>איש קשר</label><input class="input" name="contactName" value="${esc(inst?.contactName)}"></div>
       <div class="field"><label>טלפון</label><input class="input ltr" name="contactPhone" value="${esc(inst?.contactPhone)}"></div>
     </div>
-    <div class="field"><label>הרשאות למנהלי המוסד</label><div class="grid-2" style="gap:8px">
+    <div class="field"><label>הרשאות למנהלי מוסד הלימודים</label><div class="grid-2" style="gap:8px">
       ${Object.entries(PERMS).map(([k, [t, d]]) => `<label class="check"><input type="checkbox" name="perm_${k}" ${p[k] ? "checked" : ""}><span><b>${t}</b><small>${d}</small></span></label>`).join("")}
     </div></div>
-    <label class="check"><input type="checkbox" name="active" ${inst?.active === false ? "" : "checked"}><span><b>המוסד פעיל</b><small>מוסד מושבת: המנהלים לא נכנסים ומכשירים חדשים לא נרשמים</small></span></label>
-    ${inst ? `<button type="button" class="btn danger sm" id="btnDelInst" style="justify-self:start">${ic("trash")}מחיקת המוסד</button>` : ""}`,
+    <label class="check"><input type="checkbox" name="active" ${inst?.active === false ? "" : "checked"}><span><b>מוסד הלימודים פעיל</b><small>מוסד מושבת: המנהלים לא נכנסים ומכשירים חדשים לא נרשמים</small></span></label>
+    ${inst ? `<button type="button" class="btn danger sm" id="btnDelInst" style="justify-self:start">${ic("trash")}מחיקת מוסד הלימודים</button>` : ""}`,
   async (f) => {
     const data = {
       name: f.name.value.trim(), city: f.city.value.trim(), contactName: f.contactName.value.trim(),
@@ -429,7 +445,7 @@ function editInstitution(inst) {
     };
     if (inst) {
       await updateDoc(doc(db, "institutions", inst.id), data);
-      toast("המוסד עודכן");
+      toast("מוסד הלימודים עודכן");
     } else {
       const id = "i" + randomToken(5);
       const b = writeBatch(db);
@@ -437,7 +453,7 @@ function editInstitution(inst) {
       b.set(doc(db, "institutions", id, "private", "keys"), { masterSecret: newMasterSecret(), enrollToken: randomToken(16), createdAt: serverTimestamp() });
       b.set(doc(db, "institutions", id, "public", "policy"), { settings: DEFAULT_SETTINGS, telemetry: DEFAULT_TELEMETRY, version: 1, updatedAt: serverTimestamp(), updatedBy: S.email });
       await b.commit();
-      toast("המוסד נוצר");
+      toast("מוסד הלימודים נוצר");
       return go(`inst/${id}/staff`);
     }
     route();
@@ -460,7 +476,7 @@ async function deleteInstitution(inst) {
       await b.commit();
     }
     $("modal").close();
-    toast("המוסד נמחק");
+    toast("מוסד הלימודים נמחק");
     go("institutions");
   } catch (e) { fail(e); }
 }
@@ -479,7 +495,7 @@ async function renderManagers() {
       <div class="page-head"><div><h1>מנהלים וצוות</h1><p>מי שרשום כאן יכול להיכנס לפורטל עם Google או עם מייל וסיסמה</p></div>
         <div class="actions"><button class="btn" id="btnNewMgr">${ic("plus")}מנהל חדש</button></div></div>
       <div class="panel"><div class="rows">${mgrs.length ? mgrs.map((m) => managerRow(m, insts[m.instId])).join("")
-        : emptyHtml("users", "אין עדיין מנהלים", "הוסיפו מנהל ושייכו אותו למוסד")}</div></div>`);
+        : emptyHtml("users", "אין עדיין מנהלים", "הוסיפו מנהל ושייכו אותו למוסד הלימודים")}</div></div>`);
     $("btnNewMgr").onclick = () => editManager(null, iSnap.docs.map((d) => ({ id: d.id, name: d.data().name })));
     document.querySelectorAll("[data-mgr]").forEach((r) => (r.onclick = () =>
       editManager(mgrs.find((m) => m.id === r.dataset.mgr), iSnap.docs.map((d) => ({ id: d.id, name: d.data().name })))));
@@ -537,14 +553,14 @@ const INST_TABS = [
   { id: "store", icon: "store", label: "החנות הכשרה" },
   { id: "codes", icon: "key", label: "קודי שחרור" },
   { id: "staff", icon: "users", label: "צוות", perm: "manageStaff" },
-  { id: "info", icon: "info", label: "פרטי המוסד" },
+  { id: "info", icon: "info", label: "פרטי מוסד הלימודים" },
 ];
 
 function renderInstitution(instId, tab, arg) {
   main(loadingHtml);
   let first = true;
   S.subs.push(onSnapshot(doc(db, "institutions", instId), (snap) => {
-    if (!snap.exists()) { toast("המוסד לא נמצא", true); return go(S.isSuper ? "institutions" : ""); }
+    if (!snap.exists()) { toast("מוסד הלימודים לא נמצא", true); return go(S.isSuper ? "institutions" : ""); }
     S.inst = { id: snap.id, ...snap.data() };
     const tabs = INST_TABS.filter((t) => !t.perm || can(t.perm));
     renderSide([
@@ -779,7 +795,7 @@ function buildDrawer(d) {
         <div class="full row-actions"><button class="btn sm" type="submit">שמירה</button>
           <button class="btn sm ghost" type="button" id="dPolicy">${ic("sliders")}חסימות לתלמיד הזה</button>
           <button class="btn sm ghost" type="button" id="dReconnect">${ic("qr")}חיבור מחדש</button>
-          <button class="btn sm danger" type="button" id="dRemove">${ic("trash")}הסרת המכשיר מהמוסד</button></div></form></div>
+          <button class="btn sm danger" type="button" id="dRemove">${ic("trash")}הסרת המכשיר ממוסד הלימודים</button></div></form></div>
     </div>`;
 
   $("dClose").onclick = closeDrawer;
@@ -870,13 +886,21 @@ function updateDrawer(d) {
   const p = d.protection || {};
   const yes = (v) => v === true ? '<span class="yes">פעיל</span>' : v === false ? '<span style="color:var(--danger);font-weight:700">כבוי</span>' : "—";
   const iss = deviceIssues(d);
-  $("dIssues").innerHTML = iss.length ? `<div class="callout danger">${ic("shield")}<div><b>בעיות הגנה:</b> ${esc(iss.join(" · "))}</div></div>` : "";
+  $("dIssues").innerHTML = (iss.length ? `<div class="callout danger">${ic("shield")}<div><b>בעיות הגנה:</b> ${esc(iss.join(" · "))}</div></div>` : "") +
+    (d.localChanges?.length ? `<div class="callout warn">${ic("sliders")}<div style="flex:1"><b>הגדרות ששונו ידנית בטלפון:</b> ${esc(localChangesText(d))}.
+      <br><span class="small muted">הטלפון לא פועל כרגע לפי מדיניות מוסד הלימודים בנושאים האלה.</span>
+      ${can("remoteCommands") ? `<div style="margin-top:10px"><button class="btn sm" id="dRestorePolicy">${ic("sync")}החזרה למדיניות מוסד הלימודים</button></div>` : ""}</div></div>` : "");
+  const restore = $("dRestorePolicy");
+  if (restore) restore.onclick = () => addDoc(collection(db, "devices", d.id, "commands"), {
+    type: "syncPolicy", payload: {}, status: "pending", createdAt: serverTimestamp(), createdBy: S.email,
+  }).then(() => toast("נשלח. הטלפון יחזור למדיניות מוסד הלימודים תוך שניות"), fail);
   $("dKv").innerHTML = [
     ["מצב", isLive(d) ? "צפייה חיה" : isOnline(d) ? "מחובר" : "לא מחובר · " + ago(d.lastSeen)],
     ["עדכון אחרון", fmtDateTime(d.lastSeen)],
     ["אפליקציה פתוחה", d.currentAppName || (d.currentApp ? appLabel(d.currentApp) : "—")],
     ["סוללה", d.battery != null ? `${d.battery}%${d.charging ? " · בטעינה" : ""}` : "—"],
     ["רשת", { wifi: "Wi-Fi", cell: "סלולר", none: "ללא" }[d.network] || "—"],
+    ["חבילת סינון", CATALOG.profiles.find((p) => p.id === d.profileId)?.title || "—"],
     ["דגם", [d.manufacturer, d.model].filter(Boolean).join(" ") || "—"],
     ["אנדרואיד / גרסה", `${d.androidVersion || "?"} / ${d.appVersion || "?"}`],
     ["סינון", d.filteringEnabled === false ? '<span style="color:var(--danger);font-weight:700">כבוי</span>' : '<span class="yes">פעיל</span>'],
@@ -897,7 +921,7 @@ function updateDrawer(d) {
 }
 
 async function removeDevice(d) {
-  if (!confirm(`להסיר את "${d.studentName || d.label}" מהמוסד?\n\nהסינון יוסר מהטלפון (מיד, או כשיתחבר לאינטרנט) והאפליקציה תחזור למסך הפתיחה. המקום שלו במכסה יתפנה.`)) return;
+  if (!confirm(`להסיר את "${d.studentName || d.label}" ממוסד הלימודים?\n\nהסינון יוסר מהטלפון (מיד, או כשיתחבר לאינטרנט) והאפליקציה תחזור למסך הפתיחה. המקום שלו במכסה יתפנה.`)) return;
   try {
     const refs = [];
     for (const sub of ["logs", "commands"]) (await getDocs(collection(db, "devices", d.id, sub))).forEach((x) => refs.push(x.ref));
@@ -920,7 +944,7 @@ async function getKeys() {
   if (S.keys?.instId === S.inst.id) return S.keys;
   try {
     const k = await getDoc(doc(db, "institutions", S.inst.id, "private", "keys"));
-    if (!k.exists()) { toast("למוסד אין מפתח עדיין", true); return null; }
+    if (!k.exists()) { toast("למוסד הלימודים אין מפתח עדיין", true); return null; }
     S.keys = { instId: S.inst.id, ...k.data() };
     return S.keys;
   } catch (e) { fail(e); return null; }
@@ -935,7 +959,7 @@ async function renderEnroll() {
   const inst = S.inst;
   main(loadingHtml);
   const [keys, policy, used] = await Promise.all([getKeys(), getPolicy(), slotCount(inst.id)]);
-  if (!keys) return main(head("רישום מכשיר", "") + emptyHtml("key", "אין מפתח למוסד", "פנו למנהל המערכת"));
+  if (!keys) return main(head("רישום מכשיר", "") + emptyHtml("key", "אין מפתח למוסד הלימודים", "פנו למנהל המערכת"));
   const payload = JSON.stringify({
     kgSettings: 1,
     masterSecret: keys.masterSecret,
@@ -953,7 +977,7 @@ async function renderEnroll() {
         <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
           <span class="pill ${left ? "green" : "red"}">${left ? `נותרו ${left} מקומות מתוך ${inst.maxStudents}` : "המכסה מלאה"}</span>
           <span class="pill">מדיניות גרסה ${policy.version || 0}</span></div>
-        <div class="callout warn">${ic("lock")}<div>הברקוד מכיל את מפתח השחרור של המוסד. שמרו עליו כמו על סיסמה ואל תשלחו אותו לתלמידים.</div></div>
+        <div class="callout warn">${ic("lock")}<div>הברקוד מכיל את מפתח השחרור של מוסד הלימודים. שמרו עליו כמו על סיסמה ואל תשלחו אותו לתלמידים.</div></div>
       </div></div>
       <div class="stack">
         <div class="panel"><div class="panel-head"><h2>איך רושמים טלפון</h2></div><div class="panel-body">
@@ -1030,7 +1054,7 @@ async function renderPolicy(scopeParam) {
     .sort((a, b) => (a.studentName || a.label || "").localeCompare(b.studentName || b.label || "", "he"));
   const classes = [...new Set(devices.map((d) => (d.className || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "he"));
 
-  let kind = "school", docId = "policy", title = "כל המוסד", target = "";
+  let kind = "school", docId = "policy", title = "כל מוסד הלימודים", target = "";
   if (scope.startsWith("class:")) { kind = "class"; target = scope.slice(6); docId = classDocId(target); title = "כיתה " + target; }
   if (scope.startsWith("device:")) {
     kind = "device"; target = scope.slice(7);
@@ -1045,7 +1069,7 @@ async function renderPolicy(scopeParam) {
 
   const scopeBar = `<div class="panel" style="margin-bottom:18px"><div class="panel-body" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
     <span class="muted small" style="font-weight:600">חל על:</span>
-    <button type="button" class="btn sm ${kind === "school" ? "" : "ghost"}" id="scSchool">${ic("building")}כל המוסד</button>
+    <button type="button" class="btn sm ${kind === "school" ? "" : "ghost"}" id="scSchool">${ic("building")}כל מוסד הלימודים</button>
     <select class="input" id="scClass" style="width:auto;min-width:150px;padding:8px 12px"><option value="">כיתה…</option>
       ${classes.map((c) => `<option ${kind === "class" && target === c ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>
     <select class="input" id="scDevice" style="width:auto;min-width:170px;padding:8px 12px"><option value="">תלמיד…</option>
@@ -1061,17 +1085,17 @@ async function renderPolicy(scopeParam) {
   if (kind !== "school") {
     const s = data.settings || {};
     const adState = s.adBlock === true ? "on" : s.adBlock === false ? "off" : "inherit";
-    main(head("מדיניות סינון", `${esc(title)} · נוסף על המדיניות של כל המוסד`,
+    main(head("מדיניות סינון", `${esc(title)} · נוסף על המדיניות של כל מוסד הלימודים`,
       ro ? '<span class="pill warn">צפייה בלבד</span>'
         : `${snap.exists() ? `<button class="btn ghost" id="btnClearScope">${ic("trash")}ביטול ההגדרות האלה</button>` : ""}<button class="btn" id="btnSavePolicy">שמירה ושליחה</button>`) + scopeBar + `
       <form id="pol" class="stack">
-        <div class="callout">${ic("info")}<div>מה שמוגדר כאן <b>נוסף</b> על החסימות של כל המוסד${kind === "device" ? " ושל הכיתה" : ""}. אי אפשר לפתוח כאן משהו שהמוסד חסם.</div></div>
+        <div class="callout">${ic("info")}<div>מה שמוגדר כאן <b>נוסף</b> על החסימות של כל מוסד הלימודים${kind === "device" ? " ושל הכיתה" : ""}. אי אפשר לפתוח כאן משהו שמוסד הלימודים חסם.</div></div>
         <div class="grid-2">
           ${appsPanel("אפליקציות חסומות נוספות")}
           ${sitesPanel("אתרים חסומים נוספים", "כתובת אתר, למשל youtube.com. נחסמים גם כל תתי-האתרים שלו.")}
         </div>
         <div class="panel"><div class="panel-head"><h2>חוסם פרסומות</h2></div><div class="panel-body grid-3" style="gap:10px">
-          ${[["inherit", "כמו במוסד", "לפי ההגדרה של כל המוסד"], ["on", "מופעל", "חוסם פרסומות ואתרים לא ראויים"], ["off", "כבוי", "בלי חוסם פרסומות"]].map(([v, t, d]) =>
+          ${[["inherit", "כמו במוסד הלימודים", "לפי ההגדרה של כל מוסד הלימודים"], ["on", "מופעל", "חוסם פרסומות ואתרים לא ראויים"], ["off", "כבוי", "בלי חוסם פרסומות"]].map(([v, t, d]) =>
             `<label class="check"><input type="radio" name="adBlock" value="${v}" ${adState === v ? "checked" : ""}><span><b>${t}</b><small>${d}</small></span></label>`).join("")}
         </div></div>
         ${datalist}
@@ -1103,7 +1127,7 @@ async function renderPolicy(scopeParam) {
   const policy = snap.exists() ? data : { settings: DEFAULT_SETTINGS, telemetry: DEFAULT_TELEMETRY, version: 0 };
   const s = { ...DEFAULT_SETTINGS, ...policy.settings };
   const tel = { ...DEFAULT_TELEMETRY, ...policy.telemetry };
-  main(head("מדיניות סינון", `כל המוסד · גרסה ${policy.version || 0}${policy.updatedBy ? " · עודכנה על ידי " + esc(policy.updatedBy) : ""}`,
+  main(head("מדיניות סינון", `כל מוסד הלימודים · גרסה ${policy.version || 0}${policy.updatedBy ? " · עודכנה על ידי " + esc(policy.updatedBy) : ""}`,
     ro ? '<span class="pill warn">צפייה בלבד</span>' : `<button class="btn" id="btnSavePolicy">שמירה ושליחה למכשירים</button>`) + scopeBar + `
     <form id="pol" class="stack">
       <label class="check"><input type="checkbox" name="filteringEnabled" ${s.filteringEnabled ? "checked" : ""}><span><b>הסינון פעיל</b><small>כיבוי משבית את כל החסימות בכל המכשירים</small></span></label>
@@ -1297,7 +1321,7 @@ async function renderStore() {
     $("stMore").hidden = list.length <= limit;
     $("stMore").textContent = `הצגת עוד (${list.length - limit})`;
     const extraShown = extra.filter((a) => current === "all" && (!needle || (a.n || "").toLowerCase().includes(needle) || a.p.includes(needle)));
-    $("stExtra").innerHTML = extraShown.length ? `<div class="panel"><div class="panel-head"><h2>נוספו על ידי המוסד</h2><span class="pill blue">${extra.length}</span></div>
+    $("stExtra").innerHTML = extraShown.length ? `<div class="panel"><div class="panel-head"><h2>נוספו על ידי מוסד הלימודים</h2><span class="pill blue">${extra.length}</span></div>
       <div class="panel-body"><div class="app-grid">${extraShown.map((a) => appCard({ ...a, i: "" }, true)).join("")}</div></div></div>` : "";
     $("stTotal").textContent = `${enabledTotal()} אפליקציות זמינות לתלמידים · מתוך ${catalog.apps.length + extra.length}`;
   };
@@ -1422,9 +1446,9 @@ async function renderStaff() {
   try {
     const snap = await getDocs(query(collection(db, "managers"), where("instId", "==", S.inst.id)));
     const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    main(head("צוות", "מי יכול להיכנס לפורטל של המוסד",
+    main(head("צוות", "מי יכול להיכנס לפורטל של מוסד הלימודים",
       `<button class="btn" id="btnAddStaff">${ic("plus")}${S.isSuper ? "הוספת מנהל או איש צוות" : "הוספת איש צוות"}</button>`) + `
-      ${S.isSuper && !list.some((m) => m.role === "owner") ? `<div class="callout warn">${ic("info")}<div>למוסד עדיין אין מנהל. הוסיפו את המייל של מנהל המוסד כדי שיוכל להיכנס.</div></div>` : ""}
+      ${S.isSuper && !list.some((m) => m.role === "owner") ? `<div class="callout warn">${ic("info")}<div>למוסד הלימודים עדיין אין מנהל. הוסיפו את המייל של מנהל מוסד הלימודים כדי שיוכל להיכנס.</div></div>` : ""}
       <div class="panel"><div class="rows">${list.length ? list.map((m) => managerRow(m)).join("") : emptyHtml("users", "אין עדיין צוות", "")}</div></div>
       <div class="callout" style="margin-top:16px">${ic("info")}<div>המשתמש נכנס עם חשבון Google של המייל הזה. אם אין לו Google, הוא בוחר "פעם ראשונה? יצירת סיסמה" במסך הכניסה, ומאמת את המייל.</div></div>`);
     $("btnAddStaff").onclick = () => editManager(null, [], S.inst.id);
