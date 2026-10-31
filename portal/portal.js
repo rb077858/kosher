@@ -573,7 +573,8 @@ function head(title, sub, actions = "") {
 function renderDevices() {
   const inst = S.inst;
   main(head("מכשירים", `${esc(inst.name)} · מצב כל מכשירי התלמידים בזמן אמת`,
-    `${can("editPolicy") ? `<button class="btn ghost" id="btnPushUpdate" disabled>${ic("download")}עדכון אפליקציה</button>` : ""}
+    `${can("remoteCommands") ? `<button class="btn ghost" id="btnRefreshAll">${ic("sync")}רענון</button>` : ""}
+     ${can("editPolicy") ? `<button class="btn ghost" id="btnPushUpdate" disabled>${ic("download")}עדכון אפליקציה</button>` : ""}
      <a class="btn" href="#/inst/${inst.id}/enroll">${ic("plus")}רישום מכשיר</a>`) + `
     <div class="grid-4" style="margin-bottom:22px" id="devStats"></div>
     <div class="panel"><div class="panel-head"><div class="toolbar">
@@ -629,6 +630,9 @@ function drawDevices() {
   }).join("") : emptyHtml("phone", "אין תוצאות", "נסו חיפוש או סינון אחר");
   document.querySelectorAll("[data-dev]").forEach((r) => (r.onclick = () => openDevice(r.dataset.dev)));
 
+  const refresh = $("btnRefreshAll");
+  if (refresh) refresh.onclick = () => refreshAll(refresh);
+
   const upd = $("btnPushUpdate");
   if (upd) {
     const outdated = all.filter(isOutdated).length;
@@ -636,6 +640,28 @@ function drawDevices() {
     upd.title = !RELEASE ? "אין מידע על גרסה חדשה" : outdated ? `${outdated} מכשירים בגרסה ישנה` : "כל המכשירים מעודכנים";
     upd.onclick = () => pushUpdate();
   }
+}
+
+/**
+ * "רענון": a "ping" command to every device of the institution — each connected phone sends a
+ * fresh report within seconds (the list updates live). Offline phones report when they reconnect.
+ */
+async function refreshAll(button) {
+  const devices = S.devices;
+  if (!devices.length) return toast("אין מכשירים לרענן");
+  button.disabled = true;
+  try {
+    for (let i = 0; i < devices.length; i += 400) {
+      const b = writeBatch(db);
+      devices.slice(i, i + 400).forEach((d) => b.set(doc(collection(db, "devices", d.id, "commands")), {
+        type: "ping", payload: {}, status: "pending", createdAt: serverTimestamp(), createdBy: S.email,
+      }));
+      await b.commit();
+    }
+    toast(`נשלחה בקשת דיווח ל-${devices.length} מכשירים. מכשירים מחוברים יתעדכנו תוך שניות`);
+  } catch (e) { fail(e); }
+  // A short pause stops repeated clicks from piling up commands.
+  setTimeout(() => { button.disabled = false; }, 10_000);
 }
 
 // ----- App updates -----------------------------------------------------------
