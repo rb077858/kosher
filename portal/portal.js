@@ -103,7 +103,72 @@ function deviceIssues(d) {
   const p = d.protection || {};
   if (p.accessibility === false) out.push("שירות הנגישות כבוי");
   if (p.vpn === false) out.push("ה-VPN כבוי");
+  if (p.deviceAdmin === false) out.push("הרשאת מנהל מכשיר בוטלה");
+  if (p.overlay === false) out.push("הצגה מעל אפליקציות כבויה");
+  if (p.usage === false) out.push("גישה לנתוני שימוש כבויה");
+  if (p.notifications === false) out.push("ההתראות כבויות");
+  if (p.clock === false) out.push("השעה שונתה");
+  if (d.replacedLater) out.push("האפליקציה נמחקה ונרשמה מחדש");
+  // Reported by the phone the moment it happened (admin revoked, a data-wipe attempt, …).
+  const alert = d.lastAlert;
+  if (alert?.text && alert.at && Date.now() - ms(alert.at) < 24 * 3600e3 && !out.includes(alert.text)) {
+    out.push(`${alert.text} (${ago(alert.at)})`);
+  }
+  // Silent for hours: off, no internet — or the app was removed / its data wiped.
+  if (d.lastSeen && Date.now() - ms(d.lastSeen) > SILENT_MS) out.push("לא מדווח " + ago(d.lastSeen).replace("לפני ", "") + " — ייתכן שהאפליקציה הוסרה");
   return out;
+}
+const SILENT_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * The same physical phone (same androidId — it survives uninstalling and wiping the app)
+ * registered more than once: every record but the newest belongs to the wiped installation.
+ */
+function markReRegistered(devices) {
+  const byPhone = {};
+  devices.forEach((d) => { if (d.androidId) (byPhone[d.androidId] ||= []).push(d); });
+  Object.values(byPhone).filter((g) => g.length > 1).forEach((g) => {
+    g.sort((a, b) => ms(b.enrolledAt) - ms(a.enrolledAt)).slice(1).forEach((d) => { d.replacedLater = true; });
+  });
+  return devices;
+}
+
+const policyIdOf = (id) => S.devices.find((d) => d.id === id)?.policyId || id;
+
+/**
+ * "חיבור מחדש": a one-time code (24 hours) that re-attaches a wiped phone to this record — same
+ * name, class, quota slot, personal blocks and offline-unlock label. The rules check the ticket
+ * (institutions/{inst}/reconnect/{deviceId}); the phone deletes it, and this record, when it uses it.
+ */
+async function reconnectDevice(d) {
+  const keys = await getKeys();
+  if (!keys) return;
+  const token = randomToken(16);
+  try {
+    await setDoc(doc(db, "institutions", S.inst.id, "reconnect", d.id), {
+      token, slot: String(d.slot), expiresAt: Timestamp.fromMillis(Date.now() + 24 * 3600e3),
+      createdAt: serverTimestamp(), createdBy: S.email,
+    });
+  } catch (e) { return fail(e); }
+  const payload = JSON.stringify({
+    kgSettings: 1,
+    masterSecret: keys.masterSecret,
+    settings: {},
+    cloud: {
+      p: FIREBASE_CONFIG.projectId, i: S.inst.id, n: S.inst.name,
+      r: { d: d.id, k: token, s: String(d.slot), l: d.label, sn: d.studentName || "", c: d.className || "", pid: d.policyId || d.id },
+    },
+  });
+  openModal(`חיבור מחדש · ${d.studentName || d.label}`, `
+    <div class="qr-box" id="rcQr"></div>
+    <ol class="steps" style="gap:8px">
+      <li><h4>בטלפון</h4><p>פותחים את מסנן כשר ← "רישום למוסד" ← <b>"חיבור מחדש"</b> (בלי להקליד שם וכיתה).</p></li>
+      <li><h4>סורקים</h4><p>את הברקוד הזה. הטלפון חוזר לרשומה של התלמיד, עם כל ההגדרות שלו.</p></li>
+    </ol>
+    <p class="muted small" style="margin:0">הקוד טוב לפעם אחת, במשך 24 שעות. הוא מכיל את מפתח המוסד, אל תשלחו אותו לתלמיד.</p>`,
+  async () => {}, "סגירה");
+  try { $("rcQr").innerHTML = makeQr(payload).createSvgTag({ cellSize: 5, margin: 6 }); }
+  catch { $("rcQr").textContent = "לא ניתן ליצור ברקוד"; }
 }
 const PERMS = {
   monitoring: ["ניטור פעילות", "צפייה באתרים ובאפליקציות שהתלמיד השתמש בהם"],
@@ -522,7 +587,7 @@ function renderDevices() {
   $("devFilter").onchange = draw;
   latestRelease().then(() => draw());
   S.subs.push(onSnapshot(query(collection(db, "devices"), where("instId", "==", inst.id)), (snap) => {
-    S.devices = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => ms(b.lastSeen) - ms(a.lastSeen));
+    S.devices = markReRegistered(snap.docs.map((d) => ({ id: d.id, ...d.data() }))).sort((a, b) => ms(b.lastSeen) - ms(a.lastSeen));
     draw();
   }, fail));
   // Re-draw every 30s so "online"/"ago" labels stay accurate without new snapshots.
@@ -603,7 +668,7 @@ function pushUpdate() {
     </div>`,
   async (f) => {
     const scope = f.scope.value;
-    const docId = scope === "class" ? classDocId(f.className.value) : scope === "device" ? deviceDocId(f.deviceId.value) : "policy";
+    const docId = scope === "class" ? classDocId(f.className.value) : scope === "device" ? deviceDocId(policyIdOf(f.deviceId.value)) : "policy";
     if ((scope === "class" && !f.className.value) || (scope === "device" && !f.deviceId.value)) throw new Error("בחרו למי לשלוח");
     await setDoc(doc(db, "institutions", S.inst.id, "public", docId), {
       update: {
@@ -686,6 +751,7 @@ function buildDrawer(d) {
         <div class="field full"><label>הערות</label><textarea class="input" name="notes" rows="2"></textarea></div>
         <div class="full row-actions"><button class="btn sm" type="submit">שמירה</button>
           <button class="btn sm ghost" type="button" id="dPolicy">${ic("sliders")}חסימות לתלמיד הזה</button>
+          <button class="btn sm ghost" type="button" id="dReconnect">${ic("qr")}חיבור מחדש</button>
           <button class="btn sm danger" type="button" id="dRemove">${ic("trash")}הסרת המכשיר מהמוסד</button></div></form></div>
     </div>`;
 
@@ -700,6 +766,7 @@ function buildDrawer(d) {
     } catch (err) { fail(err); }
   };
   $("dRemove").onclick = () => removeDevice(d);
+  $("dReconnect").onclick = () => reconnectDevice(d);
   $("dPolicy").onclick = () => go(`inst/${S.inst.id}/policy/${encodeURIComponent("device:" + d.id)}`);
 
   $("dChallenge").oninput = async (e) => {
@@ -747,7 +814,7 @@ function buildDrawer(d) {
     let kind = "all", entries = [];
     const drawLog = () => {
       const list = entries.filter((x) => kind === "all" || x.k === kind).slice(0, 300);
-      const icons = { dns: "🌐", app: "📱", block: "⛔", unlock: "🔓", event: "•" };
+      const icons = { dns: "🌐", app: "📱", block: "⛔", unlock: "🔓", alert: "⚠️", event: "•" };
       $("dLog").innerHTML = list.length ? list.map((x) => `<div class="${x.k === "block" ? "blocked" : ""}"><time>${fmtTime(x.t)}</time><i>${icons[x.k] || "•"}</i>
         <span class="v" title="${esc(x.v)}">${esc(x.k === "app" || x.k === "block" ? appLabel(x.v) : x.v)}${x.n > 1 ? ` <span class="muted">×${x.n}</span>` : ""}</span></div>`).join("")
         : '<span class="muted small">אין פעילות מדווחת עדיין</span>';
@@ -789,6 +856,10 @@ function updateDrawer(d) {
     ["נגישות", yes(p.accessibility)],
     ["VPN תוכן", yes(p.vpn)],
     ["מנהל מכשיר", yes(p.deviceAdmin)],
+    ["הצגה מעל אפליקציות", yes(p.overlay)],
+    ["נתוני שימוש", yes(p.usage)],
+    ["התראות", yes(p.notifications)],
+    ["שעון", p.clock === false ? '<span style="color:var(--danger);font-weight:700">שונה ידנית</span>' : p.clock === true ? '<span class="yes">תקין</span>' : "—"],
     ["תווית מכשיר", `<span class="mono">${esc(d.label || "—")}</span>`],
     ["נרשם", fmtDateTime(d.enrolledAt)],
   ].map(([k, v]) => `<div><small>${k}</small><span>${typeof v === "string" && v.startsWith("<") ? v : esc(v)}</span></div>`).join("");
@@ -811,7 +882,7 @@ async function removeDevice(d) {
       await b.commit();
     }
     // The student's own policy layer, if any (needs the editPolicy permission, so not in the batch).
-    deleteDoc(doc(db, "institutions", d.instId, "public", deviceDocId(d.id))).catch(() => {});
+    deleteDoc(doc(db, "institutions", d.instId, "public", deviceDocId(d.policyId || d.id))).catch(() => {});
     closeDrawer();
     toast("המכשיר הוסר. הסינון יוסר מהטלפון");
   } catch (e) { fail(e); }
@@ -935,8 +1006,9 @@ async function renderPolicy(scopeParam) {
   let kind = "school", docId = "policy", title = "כל המוסד", target = "";
   if (scope.startsWith("class:")) { kind = "class"; target = scope.slice(6); docId = classDocId(target); title = "כיתה " + target; }
   if (scope.startsWith("device:")) {
-    kind = "device"; target = scope.slice(7); docId = deviceDocId(target);
+    kind = "device"; target = scope.slice(7);
     const d = devices.find((x) => x.id === target);
+    docId = deviceDocId(d?.policyId || target); // a reconnected phone keeps its old layer
     title = d ? (d.studentName || d.label) + (d.className ? " · " + d.className : "") : "תלמיד";
   }
   const ro = !can("editPolicy");
@@ -1358,11 +1430,11 @@ async function renderInfo() {
 // ---------------------------------------------------------------------------
 // Modal
 // ---------------------------------------------------------------------------
-function openModal(title, bodyHtml, onSubmit) {
+function openModal(title, bodyHtml, onSubmit, submitLabel = "שמירה") {
   const m = $("modal");
   m.innerHTML = `<form><div class="m-head"><h2>${esc(title)}</h2><button type="button" class="icon-btn" data-close aria-label="סגירה">${ic("close")}</button></div>
     <div class="m-body">${bodyHtml}</div>
-    <div class="m-foot"><button class="btn" type="submit">שמירה</button><button class="btn ghost" type="button" data-close>ביטול</button></div></form>`;
+    <div class="m-foot"><button class="btn" type="submit">${esc(submitLabel)}</button><button class="btn ghost" type="button" data-close>ביטול</button></div></form>`;
   const form = m.querySelector("form");
   m.querySelectorAll("[data-close]").forEach((b) => (b.onclick = () => m.close()));
   form.onsubmit = async (e) => {
