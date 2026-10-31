@@ -56,6 +56,8 @@ const ICONS = {
   copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
   globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  store: '<path d="M3 9l1.5-5h15L21 9M3 9h18v2a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0V9zM5 13v8h14v-8M10 21v-5h4v5"/>',
 };
 const ic = (name, extra = "") =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ${extra}>${ICONS[name] || ""}</svg>`;
@@ -115,6 +117,7 @@ const DEFAULT_SETTINGS = {
   downtimeEnabled: false, downtimeStartMinutes: 22 * 60, downtimeEndMinutes: 7 * 60,
   dailyDeviceLimitEnabled: false, dailyDeviceLimitMinutes: 120, essentialAppPackages: [],
   blockedDomains: [], adBlock: false, dnsServer: "", vpnEnabled: true, essentialCountsTowardTime: false, autoUpdate: false,
+  playStore: "open", kosherStore: true,
 };
 const DEFAULT_TELEMETRY = { reportDomains: true, reportApps: true, intervalMinutes: 5 };
 
@@ -227,6 +230,7 @@ window.addEventListener("hashchange", route);
 
 function route() {
   if (!S.user || $("viewApp").hidden) return;
+  window.onbeforeunload = null; // set by the store tab while it has unsaved changes
   closeDrawer();
   clearSubs();
   const [a, b, c, d] = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
@@ -465,6 +469,7 @@ const INST_TABS = [
   { id: "devices", icon: "phone", label: "מכשירים" },
   { id: "enroll", icon: "qr", label: "רישום מכשיר" },
   { id: "policy", icon: "sliders", label: "מדיניות סינון" },
+  { id: "store", icon: "store", label: "החנות הכשרה" },
   { id: "codes", icon: "key", label: "קודי שחרור" },
   { id: "staff", icon: "users", label: "צוות", perm: "manageStaff" },
   { id: "info", icon: "info", label: "פרטי המוסד" },
@@ -489,6 +494,7 @@ const TAB_RENDER = {
   devices: renderDevices,
   enroll: renderEnroll,
   policy: renderPolicy,
+  store: renderStore,
   codes: renderCodes,
   staff: renderStaff,
   info: renderInfo,
@@ -1020,6 +1026,11 @@ async function renderPolicy(scopeParam) {
           <input class="input ltr" name="dnsServer" placeholder="https://dns.example.com/dns-query" value="${esc(s.dnsServer || "")}" style="margin-bottom:16px">
         </details>
       </div></div>
+      <div class="panel"><div class="panel-head"><h2>חנויות אפליקציות</h2><a class="btn sm ghost" href="#/inst/${S.inst.id}/store">${ic("store")}ניהול החנות הכשרה</a></div><div class="panel-body grid-3" style="gap:10px">
+        <label class="check"><input type="radio" name="playStore" value="open" ${s.playStore !== "blocked" ? "checked" : ""}><span><b>Google Play פתוחה</b><small>אפשר להתקין כל אפליקציה (אפליקציות חסומות עדיין ייחסמו)</small></span></label>
+        <label class="check"><input type="radio" name="playStore" value="blocked" ${s.playStore === "blocked" ? "checked" : ""}><span><b>Google Play חסומה</b><small>מתקינים רק מהחנות הכשרה</small></span></label>
+        <label class="check"><input type="checkbox" name="kosherStore" ${s.kosherStore !== false ? "checked" : ""}><span><b>החנות הכשרה פעילה</b><small>אייקון "החנות הכשרה" בטלפונים, עם האפליקציות שאישרתם</small></span></label>
+      </div></div>
       <div class="grid-2">
         <div class="panel"><div class="panel-head"><h2>שעות שינה</h2></div><div class="panel-body stack" style="gap:10px">
           <label class="check"><input type="checkbox" name="downtimeEnabled" ${s.downtimeEnabled ? "checked" : ""}><span><b>חסימה בשעות קבועות</b><small>רק האפליקציות החיוניות זמינות</small></span></label>
@@ -1070,6 +1081,8 @@ async function renderPolicy(scopeParam) {
       dailyDeviceLimitMinutes: Math.max(5, parseInt(f.dailyMinutes.value, 10) || 120),
       essentialCountsTowardTime: f.essentialCountsTowardTime.checked,
       autoUpdate: f.autoUpdate.checked,
+      playStore: f.playStore.value,
+      kosherStore: f.kosherStore.checked,
     };
     const telemetry = { reportDomains: f.reportDomains.checked, reportApps: f.reportApps.checked, intervalMinutes: parseInt(f.intervalMinutes.value, 10) };
     try {
@@ -1086,6 +1099,182 @@ function bindScopeBar(go2) {
   $("scSchool").onclick = () => go2("school");
   $("scClass").onchange = (e) => { if (e.target.value) go2("class:" + e.target.value); };
   $("scDevice").onchange = (e) => { if (e.target.value) go2("device:" + e.target.value); };
+}
+
+// ----- Kosher store ---------------------------------------------------------
+// The store on the phones = the shared catalog (../store/catalog.json, ~900 Google Play apps in
+// categories) minus what this institution switched off, plus the apps it added — saved in
+// public/store and read by the app (store/InstitutionStore.kt). Whether the store is on at all,
+// and whether Google Play is blocked, are part of the filtering policy.
+let STORE_CATALOG = null;
+
+async function storeCatalog() {
+  if (!STORE_CATALOG) {
+    const res = await fetch("../store/catalog.json", { cache: "no-cache" });
+    STORE_CATALOG = await res.json();
+  }
+  return STORE_CATALOG;
+}
+
+const playIcon = (url) => (url ? url + "=s96" : "");
+const PKG_RE = /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$/;
+
+async function renderStore() {
+  main(loadingHtml);
+  let catalog;
+  try { catalog = await storeCatalog(); }
+  catch { return main(head("החנות הכשרה", "") + emptyHtml("store", "לא ניתן לטעון את רשימת האפליקציות", "נסו לרענן את הדף")); }
+  const [cfgSnap, polSnap] = await Promise.all([
+    getDoc(doc(db, "institutions", S.inst.id, "public", "store")),
+    getDoc(doc(db, "institutions", S.inst.id, "public", "policy")),
+  ]);
+  const cfg = cfgSnap.exists() ? cfgSnap.data() : {};
+  const pol = { ...DEFAULT_SETTINGS, ...(polSnap.exists() ? polSnap.data().settings : {}) };
+  // Until the institution saves its own choice, categories marked defaultOff (news) start off.
+  const offCats = new Set(cfg.disabledCategories ?? catalog.categories.filter((c) => c.defaultOff).map((c) => c.id));
+  const offApps = new Set(cfg.disabledApps || []);
+  const extra = [...(cfg.extraApps || [])];
+  const ro = !can("editPolicy");
+  const catTitle = Object.fromEntries(catalog.categories.map((c) => [c.id, c.title]));
+  let current = "all", q = "", filter = "all", limit = 120, dirty = false;
+
+  const isOn = (a) => !offCats.has(a.c) && !offApps.has(a.p);
+  const countIn = (id) => catalog.apps.filter((a) => a.c === id).length;
+  const enabledTotal = () => catalog.apps.filter(isOn).length + extra.length;
+
+  main(head("החנות הכשרה", `<span id="stTotal"></span>`,
+    ro ? '<span class="pill warn">צפייה בלבד</span>' : `<button class="btn" id="stAdd">${ic("plus")}הוספת אפליקציה</button>`) + `
+    <div class="callout" style="margin-top:0">${ic("info")}<div>
+      החנות הכשרה ${pol.kosherStore !== false ? '<b style="color:var(--accent)">פעילה</b>' : '<b style="color:var(--danger)">כבויה</b>'} ·
+      Google Play ${pol.playStore === "blocked" ? "<b>חסומה</b> — מתקינים רק מכאן" : "<b>פתוחה</b>"}.
+      <a href="#/inst/${S.inst.id}/policy">לשינוי בהגדרות הסינון</a></div></div>
+    <div class="store-layout">
+      <div class="panel store-cats" id="stCats"></div>
+      <div class="stack" style="gap:14px">
+        <div class="panel"><div class="panel-body" style="display:flex;gap:10px;flex-wrap:wrap">
+          <input class="input" id="stSearch" placeholder="חיפוש לפי שם או חבילה" style="flex:1;min-width:200px">
+          <select class="input" id="stFilter" style="width:auto"><option value="all">כל האפליקציות</option><option value="on">מופעלות</option><option value="off">כבויות</option></select>
+        </div></div>
+        <div id="stExtra"></div>
+        <div class="app-grid" id="stGrid"></div>
+        <button class="btn ghost" id="stMore" hidden>הצגת עוד</button>
+      </div>
+    </div>
+    <div class="save-bar" id="stSave" hidden><span>יש שינויים שלא נשמרו</span>
+      <button class="btn green sm" id="stSaveBtn">שמירה ושליחה לטלפונים</button></div>`);
+
+  const markDirty = () => { dirty = true; $("stSave").hidden = false; $("stTotal").textContent = `${enabledTotal()} אפליקציות זמינות לתלמידים · מתוך ${catalog.apps.length + extra.length}`; };
+
+  const drawCats = () => {
+    const rows = [`<div class="cat-row ${current === "all" ? "on" : ""}" data-cat="all"><span class="emo">🗂️</span><span class="nm">כל הקטגוריות<small>${catalog.apps.length} אפליקציות</small></span></div>`];
+    for (const c of catalog.categories) {
+      const on = !offCats.has(c.id);
+      rows.push(`<div class="cat-row ${current === c.id ? "on" : ""} ${on ? "" : "off"}" data-cat="${c.id}">
+        <span class="emo">${c.emoji || "📦"}</span><span class="nm">${esc(c.title)}<small>${countIn(c.id)} אפליקציות</small></span>
+        <label class="switch" title="${on ? "כיבוי הקטגוריה" : "הפעלת הקטגוריה"}"><input type="checkbox" data-cattoggle="${c.id}" ${on ? "checked" : ""} ${ro ? "disabled" : ""}><span></span></label></div>`);
+    }
+    $("stCats").innerHTML = rows.join("");
+  };
+
+  const appCard = (a, extraApp = false) => {
+    const catOff = !extraApp && offCats.has(a.c);
+    const on = extraApp || isOn(a);
+    return `<div class="app-card ${on ? "" : "off"}" title="${esc(a.p)}">
+      ${a.i ? `<img src="${esc(playIcon(a.i))}" alt="" loading="lazy">` : `<div class="ph">${esc((a.n || a.p)[0])}</div>`}
+      <div class="t"><b>${esc(a.n || a.p)}</b><small>${esc(a.p)}</small></div>
+      ${extraApp ? (ro ? "" : `<button class="icon-btn" data-rmextra="${esc(a.p)}" title="הסרה">${ic("trash")}</button>`)
+        : `<label class="switch" title="${catOff ? "הקטגוריה כבויה" : ""}"><input type="checkbox" data-apptoggle="${esc(a.p)}" ${on ? "checked" : ""} ${ro || catOff ? "disabled" : ""}><span></span></label>`}
+    </div>`;
+  };
+
+  const drawGrid = () => {
+    const needle = q.trim().toLowerCase();
+    let list = catalog.apps.filter((a) => (current === "all" || a.c === current) &&
+      (!needle || a.n.toLowerCase().includes(needle) || a.p.toLowerCase().includes(needle)));
+    if (filter === "on") list = list.filter(isOn);
+    if (filter === "off") list = list.filter((a) => !isOn(a));
+    $("stGrid").innerHTML = list.slice(0, limit).map((a) => appCard(a)).join("") ||
+      `<div class="empty" style="grid-column:1/-1">${ic("search")}<b>לא נמצאו אפליקציות</b></div>`;
+    $("stMore").hidden = list.length <= limit;
+    $("stMore").textContent = `הצגת עוד (${list.length - limit})`;
+    const extraShown = extra.filter((a) => current === "all" && (!needle || (a.n || "").toLowerCase().includes(needle) || a.p.includes(needle)));
+    $("stExtra").innerHTML = extraShown.length ? `<div class="panel"><div class="panel-head"><h2>נוספו על ידי המוסד</h2><span class="pill blue">${extra.length}</span></div>
+      <div class="panel-body"><div class="app-grid">${extraShown.map((a) => appCard({ ...a, i: "" }, true)).join("")}</div></div></div>` : "";
+    $("stTotal").textContent = `${enabledTotal()} אפליקציות זמינות לתלמידים · מתוך ${catalog.apps.length + extra.length}`;
+  };
+
+  drawCats();
+  drawGrid();
+
+  $("stCats").addEventListener("click", (e) => {
+    if (e.target.closest(".switch")) return;
+    const row = e.target.closest("[data-cat]");
+    if (!row) return;
+    current = row.dataset.cat;
+    limit = 120;
+    drawCats();
+    drawGrid();
+  });
+  $("stCats").addEventListener("change", (e) => {
+    const id = e.target.dataset.cattoggle;
+    if (!id) return;
+    if (e.target.checked) offCats.delete(id); else offCats.add(id);
+    drawCats(); drawGrid(); markDirty();
+  });
+  $("stGrid").addEventListener("change", (e) => {
+    const p = e.target.dataset.apptoggle;
+    if (!p) return;
+    if (e.target.checked) offApps.delete(p); else offApps.add(p);
+    e.target.closest(".app-card").classList.toggle("off", !e.target.checked);
+    markDirty();
+  });
+  $("stExtra").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-rmextra]");
+    if (!b) return;
+    const i = extra.findIndex((a) => a.p === b.dataset.rmextra);
+    if (i >= 0) extra.splice(i, 1);
+    drawGrid(); markDirty();
+  });
+  $("stSearch").oninput = (e) => { q = e.target.value; limit = 120; drawGrid(); };
+  $("stFilter").onchange = (e) => { filter = e.target.value; limit = 120; drawGrid(); };
+  $("stMore").onclick = () => { limit += 240; drawGrid(); };
+  window.onbeforeunload = () => (dirty ? true : undefined);
+
+  if (ro) return;
+  $("stSaveBtn").onclick = async () => {
+    try {
+      await setDoc(doc(db, "institutions", S.inst.id, "public", "store"), {
+        disabledCategories: [...offCats], disabledApps: [...offApps], extraApps: extra,
+        catalogVersion: catalog.version, updatedAt: serverTimestamp(), updatedBy: S.email,
+      });
+      dirty = false;
+      window.onbeforeunload = null;
+      $("stSave").hidden = true;
+      toast("החנות נשמרה. הטלפונים יתעדכנו תוך דקות");
+    } catch (err) { fail(err); }
+  };
+  $("stAdd").onclick = () => openModal("הוספת אפליקציה לחנות", `
+    <div class="field"><label>קישור ל-Google Play או שם החבילה</label>
+      <input class="input ltr" name="pkg" placeholder="https://play.google.com/store/apps/details?id=…" required>
+      <span class="hint">פתחו את האפליקציה ב-Google Play במחשב והעתיקו את הכתובת</span></div>
+    <div class="form-grid">
+      <div class="field"><label>שם להצגה</label><input class="input" name="name" placeholder="כפי שיופיע בחנות"></div>
+      <div class="field"><label>קטגוריה</label><select class="input" name="cat">
+        ${catalog.categories.map((c) => `<option value="${c.id}">${c.emoji || ""} ${esc(c.title)}</option>`).join("")}</select></div>
+    </div>`,
+  async (f) => {
+    const raw = f.pkg.value.trim();
+    const pkg = (raw.match(/[?&]id=([A-Za-z0-9._]+)/) || [])[1] || raw;
+    if (!PKG_RE.test(pkg)) throw new Error("לא זוהתה חבילה. הדביקו קישור מ-Google Play או שם חבילה כמו com.example.app");
+    if (catalog.apps.some((a) => a.p === pkg)) {
+      offApps.delete(pkg);
+      toast(`"${catalog.apps.find((a) => a.p === pkg).n}" כבר ברשימה, והיא הופעלה`);
+    } else if (!extra.some((a) => a.p === pkg)) {
+      extra.push({ p: pkg, n: f.name.value.trim() || pkg, c: f.cat.value });
+    }
+    current = "all";
+    drawCats(); drawGrid(); markDirty();
+  });
 }
 
 // ----- Unlock codes -------------------------------------------------------
