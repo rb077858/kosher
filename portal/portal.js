@@ -114,7 +114,7 @@ const DEFAULT_SETTINGS = {
   profileId: "recommended", customCategoryIds: [], customAppPackages: [], filteringEnabled: true,
   downtimeEnabled: false, downtimeStartMinutes: 22 * 60, downtimeEndMinutes: 7 * 60,
   dailyDeviceLimitEnabled: false, dailyDeviceLimitMinutes: 120, essentialAppPackages: [],
-  blockedDomains: [], adBlock: false, dnsServer: "", vpnEnabled: true,
+  blockedDomains: [], adBlock: false, dnsServer: "", vpnEnabled: true, essentialCountsTowardTime: false, autoUpdate: false,
 };
 const DEFAULT_TELEMETRY = { reportDomains: true, reportApps: true, intervalMinutes: 5 };
 
@@ -502,7 +502,8 @@ function head(title, sub, actions = "") {
 function renderDevices() {
   const inst = S.inst;
   main(head("מכשירים", `${esc(inst.name)} · מצב כל מכשירי התלמידים בזמן אמת`,
-    `<a class="btn" href="#/inst/${inst.id}/enroll">${ic("plus")}רישום מכשיר</a>`) + `
+    `${can("editPolicy") ? `<button class="btn ghost" id="btnPushUpdate" disabled>${ic("download")}עדכון אפליקציה</button>` : ""}
+     <a class="btn" href="#/inst/${inst.id}/enroll">${ic("plus")}רישום מכשיר</a>`) + `
     <div class="grid-4" style="margin-bottom:22px" id="devStats"></div>
     <div class="panel"><div class="panel-head"><div class="toolbar">
         <input class="input" id="devSearch" placeholder="חיפוש תלמיד, כיתה או דגם">
@@ -513,6 +514,7 @@ function renderDevices() {
   const draw = () => drawDevices();
   $("devSearch").oninput = draw;
   $("devFilter").onchange = draw;
+  latestRelease().then(() => draw());
   S.subs.push(onSnapshot(query(collection(db, "devices"), where("instId", "==", inst.id)), (snap) => {
     S.devices = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => ms(b.lastSeen) - ms(a.lastSeen));
     draw();
@@ -551,9 +553,63 @@ function drawDevices() {
       <div class="t"><b>${esc(d.studentName || d.label || "ללא שם")}</b>
         <small>${esc([d.className, [d.manufacturer, d.model].filter(Boolean).join(" ")].filter(Boolean).join(" · "))} · ${isOnline(d) ? (d.currentAppName ? "עכשיו ב" + esc(d.currentAppName) : "מחובר") : ago(d.lastSeen)}</small></div>
       <div class="r">${iss.length ? `<span class="pill red" title="${esc(iss.join(", "))}">${esc(iss[0])}${iss.length > 1 ? " +" + (iss.length - 1) : ""}</span>` : ""}
+        ${isOutdated(d) ? '<span class="pill warn">גרסה ישנה</span>' : ""}
         ${d.battery != null ? `<span class="pill">${d.charging ? "⚡" : ""}${d.battery}%</span>` : ""}</div></div>`;
   }).join("") : emptyHtml("phone", "אין תוצאות", "נסו חיפוש או סינון אחר");
   document.querySelectorAll("[data-dev]").forEach((r) => (r.onclick = () => openDevice(r.dataset.dev)));
+
+  const upd = $("btnPushUpdate");
+  if (upd) {
+    const outdated = all.filter(isOutdated).length;
+    upd.disabled = !RELEASE || !outdated;
+    upd.title = !RELEASE ? "אין מידע על גרסה חדשה" : outdated ? `${outdated} מכשירים בגרסה ישנה` : "כל המכשירים מעודכנים";
+    upd.onclick = () => pushUpdate();
+  }
+}
+
+// ----- App updates -----------------------------------------------------------
+// The newest APK is described by downloads/version.json on this site. A manager's request is an
+// `update` field on a policy layer doc (public/policy, class-…, device-…); phones read the highest
+// one and show the mandatory-update screen (app update/AppUpdater.kt).
+let RELEASE = null;
+
+async function latestRelease() {
+  try {
+    const res = await fetch("../downloads/version.json", { cache: "no-store" });
+    if (res.ok) RELEASE = await res.json();
+  } catch { RELEASE = null; }
+  return RELEASE;
+}
+
+const isOutdated = (d) => !!RELEASE && (d.appVersionCode || 0) < RELEASE.versionCode;
+
+function pushUpdate() {
+  const devices = S.devices;
+  const classes = [...new Set(devices.map((d) => (d.className || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "he"));
+  openModal(`עדכון לגרסה ${RELEASE.versionName}`, `
+    <p class="muted" style="margin:0">${devices.filter(isOutdated).length} מכשירים עדיין בגרסה ישנה. בטלפונים שנבחרו יופיע מסך עדכון שאי אפשר לדלג עליו (אפשר לדחות פעם אחת ב-10 דקות).</p>
+    <div class="field"><label>למי לשלוח</label>
+      <label class="check"><input type="radio" name="scope" value="school" checked><span><b>כל התלמידים</b></span></label>
+      <label class="check"><input type="radio" name="scope" value="class"><span><b>כיתה</b>
+        <select class="input" name="className" style="margin-top:6px">${classes.map((c) => `<option>${esc(c)}</option>`).join("")}</select></span></label>
+      <label class="check"><input type="radio" name="scope" value="device"><span><b>תלמיד</b>
+        <select class="input" name="deviceId" style="margin-top:6px">${devices.filter(isOutdated).map((d) => `<option value="${esc(d.id)}">${esc(d.studentName || d.label)}${d.className ? " · " + esc(d.className) : ""}</option>`).join("")}</select></span></label>
+    </div>`,
+  async (f) => {
+    const scope = f.scope.value;
+    const docId = scope === "class" ? classDocId(f.className.value) : scope === "device" ? deviceDocId(f.deviceId.value) : "policy";
+    if ((scope === "class" && !f.className.value) || (scope === "device" && !f.deviceId.value)) throw new Error("בחרו למי לשלוח");
+    await setDoc(doc(db, "institutions", S.inst.id, "public", docId), {
+      update: {
+        versionCode: RELEASE.versionCode,
+        versionName: RELEASE.versionName,
+        apkUrl: new URL("../downloads/" + (RELEASE.apk || "KosherGuard.apk"), location.href).href,
+        requestedAt: serverTimestamp(),
+        requestedBy: S.email,
+      },
+    }, { merge: true });
+    toast("בקשת העדכון נשלחה. הטלפונים יציגו אותה תוך שניות");
+  });
 }
 
 // ----- Device drawer ------------------------------------------------------
@@ -925,7 +981,7 @@ async function renderPolicy(scopeParam) {
       try {
         await setDoc(doc(db, "institutions", S.inst.id, "public", docId), {
           scope: kind, target, settings, updatedAt: serverTimestamp(), updatedBy: S.email,
-        });
+        }, { mergeFields: ["scope", "target", "settings", "updatedAt", "updatedBy"] }); // keeps a pending "update" request
         toast("נשמר. המכשירים יתעדכנו תוך שניות");
         renderPolicy(scopeParam);
       } catch (e) { fail(e); }
@@ -971,8 +1027,12 @@ async function renderPolicy(scopeParam) {
           <div class="field"><label>עד</label><input class="input" type="time" name="downtimeEnd" value="${minutesToTime(s.downtimeEndMinutes)}"></div></div></div></div>
         <div class="panel"><div class="panel-head"><h2>מגבלת זמן יומית</h2></div><div class="panel-body stack" style="gap:10px">
           <label class="check"><input type="checkbox" name="dailyDeviceLimitEnabled" ${s.dailyDeviceLimitEnabled ? "checked" : ""}><span><b>הגבלת שימוש יומי</b><small>אחרי המכסה רק אפליקציות חיוניות</small></span></label>
-          <div class="field"><label>דקות ביום</label><input class="input" type="number" min="5" max="1440" name="dailyMinutes" value="${s.dailyDeviceLimitMinutes}"></div></div></div>
+          <div class="field"><label>דקות ביום</label><input class="input" type="number" min="5" max="1440" name="dailyMinutes" value="${s.dailyDeviceLimitMinutes}"></div>
+          <label class="check"><input type="checkbox" name="essentialCountsTowardTime" ${s.essentialCountsTowardTime ? "checked" : ""}><span><b>אפליקציות חיוניות נספרות בזמן</b><small>הן לא נחסמות לעולם, אבל הזמן בהן יורד מהמכסה היומית</small></span></label></div></div>
       </div>
+      <div class="panel"><div class="panel-head"><h2>עדכוני אפליקציה</h2></div><div class="panel-body">
+        <label class="check"><input type="checkbox" name="autoUpdate" ${s.autoUpdate ? "checked" : ""}><span><b>עדכון אוטומטי</b><small>כשיוצאת גרסה חדשה, כל הטלפונים מתבקשים מיד להתעדכן, בלי ללחוץ על "עדכון אפליקציה"</small></span></label>
+      </div></div>
       <div class="panel"><div class="panel-head"><h2>דיווח למערכת</h2></div><div class="panel-body grid-3" style="gap:10px">
         <label class="check"><input type="checkbox" name="reportDomains" ${tel.reportDomains ? "checked" : ""}><span><b>דיווח אתרים</b><small>שמות האתרים בלבד, בלי תוכן</small></span></label>
         <label class="check"><input type="checkbox" name="reportApps" ${tel.reportApps ? "checked" : ""}><span><b>דיווח אפליקציות</b><small>איזו אפליקציה נפתחה ומתי</small></span></label>
@@ -1008,12 +1068,14 @@ async function renderPolicy(scopeParam) {
       downtimeEndMinutes: timeToMinutes(f.downtimeEnd.value),
       dailyDeviceLimitEnabled: f.dailyDeviceLimitEnabled.checked,
       dailyDeviceLimitMinutes: Math.max(5, parseInt(f.dailyMinutes.value, 10) || 120),
+      essentialCountsTowardTime: f.essentialCountsTowardTime.checked,
+      autoUpdate: f.autoUpdate.checked,
     };
     const telemetry = { reportDomains: f.reportDomains.checked, reportApps: f.reportApps.checked, intervalMinutes: parseInt(f.intervalMinutes.value, 10) };
     try {
       await setDoc(doc(db, "institutions", S.inst.id, "public", "policy"), {
         settings, telemetry, version: (policy.version || 0) + 1, updatedAt: serverTimestamp(), updatedBy: S.email,
-      });
+      }, { mergeFields: ["settings", "telemetry", "version", "updatedAt", "updatedBy"] }); // keeps a pending "update" request
       toast("המדיניות נשמרה. מכשירים מחוברים יתעדכנו תוך שניות");
       renderPolicy(scopeParam);
     } catch (e) { fail(e); }
