@@ -646,7 +646,8 @@ let RELEASE = null;
 
 async function latestRelease() {
   try {
-    const res = await fetch("../downloads/version.json", { cache: "no-store" });
+    // The unique query skips the CDN's cached copy (it keeps files for hours).
+    const res = await fetch("../downloads/version.json?t=" + Date.now(), { cache: "no-store" });
     if (res.ok) RELEASE = await res.json();
   } catch { RELEASE = null; }
   return RELEASE;
