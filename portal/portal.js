@@ -57,6 +57,7 @@ const ICONS = {
   sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
   globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  trophy: '<path d="M8 21h8M12 17v4M7 4h10v6a5 5 0 0 1-10 0zM7 6H3v2a4 4 0 0 0 4 4M17 6h4v2a4 4 0 0 1-4 4"/>',
   clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
   home: '<path d="M3 11 12 3l9 8M5 9.5V21h14V9.5M10 21v-6h4v6"/>',
   store: '<path d="M3 9l1.5-5h15L21 9M3 9h18v2a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0V9zM5 13v8h14v-8M10 21v-5h4v5"/>',
@@ -99,6 +100,11 @@ const minutesToTime = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${S
 const timeToMinutes = (v) => { const [h, m] = v.split(":").map(Number); return h * 60 + m; };
 const isOnline = (d) => Date.now() - ms(d.lastSeen) < ONLINE_WINDOW_MS;
 const isLive = (d) => ms(d.liveUntil) > Date.now();
+/** The phone's last alert, unless it's old or a manager marked it as handled. */
+function openAlert(d) {
+  const a = d.lastAlert;
+  return !!(a?.text && a.at && Date.now() - ms(a.at) < 24 * 3600e3 && ms(a.at) > ms(d.alertHandledAt));
+}
 function deviceIssues(d) {
   const out = [];
   if (d.filteringEnabled === false) out.push("הסינון כבוי");
@@ -114,7 +120,7 @@ function deviceIssues(d) {
   if (d.localChanges?.length) out.push("שונה ידנית בטלפון: " + localChangesText(d));
   // Reported by the phone the moment it happened (admin revoked, a data-wipe attempt, …).
   const alert = d.lastAlert;
-  if (alert?.text && alert.at && Date.now() - ms(alert.at) < 24 * 3600e3 && !out.includes(alert.text)) {
+  if (openAlert(d) && !out.includes(alert.text)) {
     out.push(`${alert.text} (${ago(alert.at)})`);
   }
   // Silent for hours: off, no internet — or the app was removed / its data wiped.
@@ -477,7 +483,7 @@ async function deleteInstitution(inst) {
   if (!confirm(`למחוק את "${inst.name}" עם כל המכשירים, הצוות והמפתחות שלו? אי אפשר לבטל.`)) return;
   try {
     const refs = [];
-    for (const sub of ["slots", "private", "public"]) (await getDocs(collection(db, "institutions", inst.id, sub))).forEach((d) => refs.push(d.ref));
+    for (const sub of ["slots", "private", "public", "awards"]) (await getDocs(collection(db, "institutions", inst.id, sub))).forEach((d) => refs.push(d.ref));
     (await getDocs(query(collection(db, "devices"), where("instId", "==", inst.id)))).forEach((d) => refs.push(d.ref));
     (await getDocs(query(collection(db, "managers"), where("instId", "==", inst.id)))).forEach((d) => refs.push(d.ref));
     refs.push(doc(db, "institutions", inst.id));
@@ -561,6 +567,7 @@ const INST_TABS = [
   { id: "home", icon: "home", label: "סקירה" },
   { id: "devices", icon: "phone", label: "תלמידים ומכשירים" },
   { id: "time", icon: "clock", label: "זמני מסך" },
+  { id: "game", icon: "trophy", label: "מצב משחק" },
   { id: "policy", icon: "sliders", label: "מה חסום" },
   { id: "store", icon: "store", label: "החנות הכשרה" },
   { id: "enroll", icon: "qr", label: "רישום מכשיר" },
@@ -594,6 +601,7 @@ const TAB_RENDER = {
   home: renderHome,
   devices: renderDevices,
   time: renderTime,
+  game: renderGame,
   enroll: renderEnroll,
   policy: renderPolicy,
   store: renderStore,
@@ -951,11 +959,16 @@ function updateDrawer(d) {
   const p = d.protection || {};
   const yes = (v) => v === true ? '<span class="yes">פעיל</span>' : v === false ? '<span style="color:var(--danger);font-weight:700">כבוי</span>' : "—";
   const iss = deviceIssues(d);
-  const others = iss.filter((x) => !x.startsWith("שונה ידנית")); // the local changes get their own box below
+  // The local changes and the phone's alert get boxes of their own below, each with its button.
+  const others = iss.filter((x) => !x.startsWith("שונה ידנית") && !(openAlert(d) && x.startsWith(d.lastAlert.text)));
   $("dIssues").innerHTML = (others.length ? `<div class="callout danger">${ic("shield")}<div><b>בעיות הגנה:</b> ${esc(others.join(" · "))}</div></div>` : "") +
     (d.localChanges?.length ? `<div class="callout warn">${ic("sliders")}<div style="flex:1"><b>הגדרות ששונו ידנית בטלפון:</b> ${esc(localChangesText(d))}.
       <br><span class="small muted">הטלפון לא פועל כרגע לפי מדיניות מוסד הלימודים בנושאים האלה.</span>
-      ${can("remoteCommands") ? `<div style="margin-top:10px"><button class="btn sm" id="dRestorePolicy">${ic("sync")}החזרה למדיניות מוסד הלימודים</button></div>` : ""}</div></div>` : "");
+      ${can("remoteCommands") ? `<div style="margin-top:10px"><button class="btn sm" id="dRestorePolicy">${ic("sync")}החזרה למדיניות מוסד הלימודים</button></div>` : ""}</div></div>` : "") +
+    (openAlert(d) ? `<div class="callout warn" style="margin-top:10px">${ic("info")}<div style="flex:1"><b>${esc(d.lastAlert.text)}</b> <span class="small muted">${esc(ago(d.lastAlert.at))}</span>
+      <div style="margin-top:10px"><button class="btn sm ghost" id="dAlertDone">טופל, להסיר את ההתראה</button></div></div></div>` : "");
+  const alertDone = $("dAlertDone");
+  if (alertDone) alertDone.onclick = () => updateDoc(doc(db, "devices", d.id), { alertHandledAt: serverTimestamp() }).then(() => toast("ההתראה הוסרה"), fail);
   const restore = $("dRestorePolicy");
   if (restore) restore.onclick = () => addDoc(collection(db, "devices", d.id, "commands"), {
     type: "syncPolicy", payload: {}, status: "pending", createdAt: serverTimestamp(), createdBy: S.email,
@@ -1438,6 +1451,248 @@ function scopeBarHtml(kind, target, classes, devices) {
   </div></div>`;
 }
 
+// ----- Game mode ------------------------------------------------------------
+// public/game: { enabled, achievements[], prizes[], lockedThemes[] }, read by the phones
+// (app game/Game.kt), which work out the goals themselves and report wins in institutions/{i}/awards.
+// Off means the phones show and lock nothing at all.
+const WIDGET_THEMES = [
+  ["navy", "לילה", "#14254D"], ["emerald", "יער", "#0EA47A"], ["sunset", "שקיעה", "#F0623E"], ["lavender", "לבנדר", "#7C5CE0"],
+  ["ocean", "ים", "#1693C9"], ["light", "בהיר", "#E9EFFF"], ["gold", "זהב", "#FFC93C"], ["rainbow", "קשת", "#B04FA8"], ["galaxy", "גלקסיה", "#2B1466"],
+];
+const PRIZE_KINDS = {
+  physical: ["פרס אמיתי", "טופי, ממתק, הפתעה… אתם מביאים לתלמיד"],
+  bonusTime: ["תוספת זמן מסך", "נוסף אוטומטית למגבלה היומית"],
+  widgetTheme: ["עיצוב לווידג'ט", "נפתח אוטומטית בטלפון"],
+};
+const GOAL_TEMPLATES = [
+  { emoji: "🔥", title: "שלושה ימים רגועים", description: "פחות משעה מסך ביום, שלושה ימים ברצף", kind: "screen", minutes: 60, days: 3 },
+  { emoji: "🌟", title: "שבוע מושלם", description: "פחות משעתיים ביום, שבוע שלם", kind: "screen", minutes: 120, days: 7 },
+  { emoji: "🌱", title: "יום אחד טוב", description: "פחות מחצי שעה מסך היום", kind: "screen", minutes: 30, days: 1 },
+  { emoji: "📵", title: "פחות רשתות", description: "פחות מרבע שעה באפליקציות שתבחרו, שלושה ימים", kind: "apps", minutes: 15, days: 3 },
+];
+const prizeSummary = (p) => p.kind === "bonusTime" ? `+${p.minutes} דק' ל${p.days > 1 ? `-${p.days} ימים` : "יום אחד"}`
+  : p.kind === "widgetTheme" ? `עיצוב "${(WIDGET_THEMES.find((t) => t[0] === p.themeId) || [])[1] || p.themeId}"` : "אתם מביאים";
+const studentOf = (a) => S.devices.find((d) => (d.policyId || d.id) === a.policyId);
+
+async function renderGame() {
+  main(loadingHtml);
+  const ref = doc(db, "institutions", S.inst.id, "public", "game");
+  const snap = await getDoc(ref);
+  const game = { enabled: false, achievements: [], prizes: [], lockedThemes: [], ...(snap.exists() ? snap.data() : {}) };
+  const ro = !can("editPolicy");
+  await appIndex();
+  const save = async (msg) => {
+    await setDoc(ref, { enabled: game.enabled, achievements: game.achievements, prizes: game.prizes, lockedThemes: game.lockedThemes, updatedAt: serverTimestamp(), updatedBy: S.email });
+    toast(msg || "נשמר. הטלפונים יתעדכנו תוך שניות");
+  };
+
+  main(`<div class="game-hero"><div class="gh-emo">🏆</div><div style="flex:1;min-width:220px"><h1>מצב משחק</h1>
+      <p>הופכים את זמן המסך למשחק: יעדים, רצפים ופרסים. כשמצב משחק כבוי, התלמידים לא רואים ממנו כלום.</p></div>
+      <label class="switch big" title="הפעלה וכיבוי"><input type="checkbox" id="gOn" ${game.enabled ? "checked" : ""} ${ro ? "disabled" : ""}><span></span></label></div>
+    <div id="gBody" ${game.enabled ? "" : "hidden"} class="stack">
+      <div class="panel"><div class="panel-head"><div><h2>🎁 פרסים למסירה</h2><small class="muted">למי מגיע מה. סמנו "הבאתי" כשמסרתם</small></div>
+        <div class="row-actions"><select class="input" id="gAwardFilter" style="width:auto;padding:8px 12px"><option value="open">מחכים למסירה</option><option value="all">הכל</option></select>
+          ${can("editPolicy") ? `<button class="btn sm" id="gGive">${ic("plus")}מתן פרס ידני</button>` : ""}</div></div>
+        <div class="rows" id="gAwards">${loadingHtml}</div></div>
+
+      <div class="panel"><div class="panel-head"><div><h2>🎯 יעדים והישגים</h2><small class="muted">מה התלמידים צריכים להשיג</small></div>
+        ${ro ? "" : `<button class="btn sm" id="gAddGoal">${ic("plus")}יעד חדש</button>`}</div>
+        <div class="panel-body game-grid" id="gGoals"></div></div>
+
+      <div class="panel"><div class="panel-head"><div><h2>🍬 רשימת הפרסים</h2><small class="muted">פרסים אמיתיים ופרסים אוטומטיים</small></div>
+        ${ro ? "" : `<button class="btn sm" id="gAddPrize">${ic("plus")}פרס חדש</button>`}</div>
+        <div class="panel-body game-grid" id="gPrizes"></div></div>
+
+      <div class="panel"><div class="panel-head"><div><h2>🎨 עיצובים נעולים לווידג'ט</h2><small class="muted">מה שמסומן נעול עד שהתלמיד זוכה בו כפרס</small></div></div>
+        <div class="panel-body theme-pick" id="gThemes"></div></div>
+    </div>`);
+
+  const drawGoals = () => {
+    $("gGoals").innerHTML = game.achievements.map((a, i) => {
+      const scope = a.scopeType === "class" ? `כיתות: ${(a.scopeTargets || []).join(", ")}`
+        : a.scopeType === "device" ? `${(a.scopeTargets || []).length} תלמידים` : "כל התלמידים";
+      const rule = a.kind === "manual" ? "ניתן ידנית" : `${a.kind === "apps" ? "באפליקציות שנבחרו " : ""}פחות מ-${fmtMinutes(a.minutes)}${a.days > 1 ? `, ${a.days} ימים ברצף` : " ביום"}`;
+      const reward = a.rewardMode === "none" ? "בלי פרס" : a.rewardMode === "randomAll" ? "פרס אקראי מכל הרשימה"
+        : a.rewardMode === "randomFrom" ? `אקראי מבין ${(a.prizeIds || []).length} פרסים` : (game.prizes.find((p) => p.id === a.prizeIds?.[0])?.title || "לא נבחר פרס");
+      return `<div class="game-card" data-goal="${i}"><div class="gc-emo">${esc(a.emoji)}</div><b>${esc(a.title)}</b>
+        <small>${esc(rule)}</small><div class="chips"><span class="pill">${esc(scope)}</span><span class="pill blue">🎁 ${esc(reward)}</span>${a.repeat ? '<span class="pill">חוזר</span>' : ""}</div></div>`;
+    }).join("") || emptyHtml("grid", "עדיין אין יעדים", "למשל: שלושה ימים ברצף מתחת לשעה");
+  };
+  const drawPrizes = () => {
+    $("gPrizes").innerHTML = game.prizes.map((p, i) => `<div class="game-card" data-prize="${i}"><div class="gc-emo">${esc(p.emoji)}</div><b>${esc(p.title)}</b><small>${esc(PRIZE_KINDS[p.kind]?.[0] || "")} · ${esc(prizeSummary(p))}</small></div>`).join("")
+      || emptyHtml("grid", "עדיין אין פרסים", "למשל: טופי, או 10 דקות נוספות");
+  };
+  const drawThemes = () => {
+    $("gThemes").innerHTML = WIDGET_THEMES.map(([id, t, color]) => `<label class="theme-chip"><input type="checkbox" data-theme="${id}" ${game.lockedThemes.includes(id) ? "checked" : ""} ${ro ? "disabled" : ""}>
+      <i style="background:${color}"></i><span>${esc(t)}</span><em>🔒</em></label>`).join("");
+  };
+  drawGoals(); drawPrizes(); drawThemes();
+
+  $("gOn").onchange = async (e) => {
+    game.enabled = e.target.checked;
+    $("gBody").hidden = !game.enabled;
+    try { await save(game.enabled ? "מצב משחק הופעל 🎉" : "מצב משחק כובה. הוא נעלם מכל הטלפונים"); } catch (err) { fail(err); }
+  };
+
+  // ---- Awards ----
+  let awards = [];
+  const drawAwards = () => {
+    if (!$("gAwards")) return;
+    const f = $("gAwardFilter").value;
+    const list = awards.filter((a) => f === "all" || a.status === "earned").sort((x, y) => (y.atMs || 0) - (x.atMs || 0));
+    $("gAwards").innerHTML = list.map((a) => {
+      const d = studentOf(a);
+      const delivered = a.status === "delivered";
+      return `<div class="row award"><div class="gc-emo small">${esc(a.emoji)}</div>
+        <div class="t"><b>${esc(d?.studentName || a.studentName || a.label || "תלמיד")} · ${esc(a.title)}</b>
+          <small>${esc([d?.className, a.achievementTitle, a.atMs ? fmtDateTime(a.atMs) : ""].filter(Boolean).join(" · "))}</small></div>
+        <div class="r">${a.status === "earned" ? `<button class="btn sm green" data-deliver="${esc(a.id)}">הבאתי ✓</button>`
+          : delivered ? `<span class="pill green">נמסר</span><button class="btn sm ghost" data-undeliver="${esc(a.id)}">החזרה</button>` : '<span class="pill blue">אוטומטי</span>'}</div></div>`;
+    }).join("") || emptyHtml("grid", f === "open" ? "אין פרסים שמחכים למסירה" : "עדיין לא זכו בפרסים", "כשתלמיד ישיג יעד, הוא יופיע כאן");
+  };
+  $("gAwardFilter").onchange = drawAwards;
+  const awardsCol = collection(db, "institutions", S.inst.id, "awards");
+  S.subs.push(onSnapshot(awardsCol, (s) => { awards = s.docs.map((x) => ({ ...x.data(), id: x.id })); drawAwards(); }, fail));
+  S.onDevices = drawAwards;
+  $("gAwards").onclick = async (e) => {
+    const on = e.target.closest("[data-deliver]"), off = e.target.closest("[data-undeliver]");
+    if (!on && !off) return;
+    const id = (on || off).dataset.deliver || (on || off).dataset.undeliver;
+    try { await updateDoc(doc(awardsCol, id), on ? { status: "delivered", deliveredAt: serverTimestamp(), deliveredBy: S.email } : { status: "earned" }); } catch (err) { fail(err); }
+  };
+  if (ro) return;
+
+  const give = $("gGive");
+  if (give) give.onclick = () => {
+    if (!game.prizes.length) return toast("הוסיפו קודם פרס לרשימה", true);
+    openModal("מתן פרס ידני", `
+      <div class="field"><label>למי</label><select class="input" name="who" required><option value="">בחרו תלמיד…</option>
+        ${S.devices.map((d) => `<option value="${esc(d.id)}">${esc(d.studentName || d.label)}${d.className ? " · " + esc(d.className) : ""}</option>`).join("")}</select></div>
+      <div class="field"><label>איזה פרס</label><select class="input" name="prize">${game.prizes.map((p, i) => `<option value="${i}">${esc(p.emoji)} ${esc(p.title)}</option>`).join("")}</select></div>
+      <div class="field"><label>על מה (לא חובה)</label><input class="input" name="why" placeholder="למשל: התנהגות למופת"></div>`,
+    async (f) => {
+      const d = S.devices.find((x) => x.id === f.who.value);
+      if (!d) throw new Error("בחרו תלמיד");
+      const p = game.prizes[+f.prize.value];
+      const policyId = d.policyId || d.id;
+      const id = `${policyId}_manual_${randomToken(5)}`;
+      await setDoc(doc(awardsCol, id), {
+        id, policyId, label: d.label || "", studentName: d.studentName || "", achievementId: "", achievementTitle: f.why.value.trim(),
+        prizeId: p.id, title: p.title, emoji: p.emoji, kind: p.kind, minutes: p.minutes || 0, days: p.days || 1, themeId: p.themeId || "",
+        status: p.kind === "physical" ? "earned" : "auto", source: "manual", atMs: Date.now(), createdAt: serverTimestamp(), createdBy: S.email,
+      });
+      toast(`${p.emoji} נשלח ל${d.studentName || d.label}`);
+    }, "מתן הפרס");
+  };
+
+  // ---- Prizes ----
+  const editPrize = (i) => {
+    const p = i == null ? { emoji: "🍬", title: "", kind: "physical", minutes: 10, days: 1, themeId: "gold" } : game.prizes[i];
+    openModal(i == null ? "פרס חדש" : "עריכת פרס", `
+      <div class="field"><label>סוג הפרס</label><div class="grid-3" style="gap:8px">
+        ${Object.entries(PRIZE_KINDS).map(([k, [t, d]]) => `<label class="check"><input type="radio" name="kind" value="${k}" ${p.kind === k ? "checked" : ""}><span><b>${t}</b><small>${d}</small></span></label>`).join("")}</div></div>
+      <div class="form-grid"><div class="field" style="max-width:90px"><label>סמל</label><input class="input" name="emoji" value="${esc(p.emoji)}" style="text-align:center;font-size:22px"></div>
+        <div class="field"><label>שם הפרס</label><input class="input" name="title" required value="${esc(p.title)}" placeholder="למשל: טופי"></div></div>
+      <div class="emoji-row">${["🍬", "🍭", "🍫", "🍦", "🎁", "📚", "⚽", "🎈", "⏰", "🎨", "🌟", "👑"].map((e) => `<button type="button" data-e="${e}">${e}</button>`).join("")}</div>
+      <div class="form-grid" id="pBonus"><div class="field"><label>כמה דקות</label><input class="input" type="number" min="1" max="600" name="minutes" value="${p.minutes || 10}"></div>
+        <div class="field"><label>לכמה ימים</label><input class="input" type="number" min="1" max="30" name="days" value="${p.days || 1}"></div></div>
+      <div class="field" id="pTheme"><label>איזה עיצוב נפתח</label><select class="input" name="themeId">${WIDGET_THEMES.map(([id, t]) => `<option value="${id}" ${p.themeId === id ? "selected" : ""}>${t}</option>`).join("")}</select>
+        <span class="hint">סמנו את העיצוב כנעול למטה, אחרת הוא פתוח לכולם ממילא</span></div>
+      ${i == null ? "" : `<button type="button" class="btn danger sm" id="pDel" style="justify-self:start">${ic("trash")}מחיקת הפרס</button>`}`,
+    async (f) => {
+      const next = { id: p.id || "p" + randomToken(4), emoji: f.emoji.value.trim() || "🎁", title: f.title.value.trim(), kind: f.kind.value,
+        minutes: Math.max(1, parseInt(f.minutes.value, 10) || 10), days: Math.max(1, parseInt(f.days.value, 10) || 1), themeId: f.themeId.value };
+      if (i == null) game.prizes.push(next); else game.prizes[i] = next;
+      if (next.kind === "widgetTheme" && !game.lockedThemes.includes(next.themeId)) game.lockedThemes.push(next.themeId);
+      await save();
+      drawPrizes(); drawThemes(); drawGoals();
+    });
+    const m = $("modal");
+    const sync = () => { const k = m.querySelector('[name="kind"]:checked').value; $("pBonus").hidden = k !== "bonusTime"; $("pTheme").hidden = k !== "widgetTheme"; };
+    m.querySelectorAll('[name="kind"]').forEach((r) => (r.onchange = sync)); sync();
+    m.querySelector(".emoji-row").onclick = (e) => { const b = e.target.closest("[data-e]"); if (b) m.querySelector('[name="emoji"]').value = b.dataset.e; };
+    const del = $("pDel");
+    if (del) del.onclick = async () => {
+      if (!confirm(`למחוק את "${p.title}"?`)) return;
+      game.prizes.splice(i, 1);
+      game.achievements.forEach((a) => { a.prizeIds = (a.prizeIds || []).filter((x) => x !== p.id); });
+      try { await save("נמחק"); m.close(); drawPrizes(); drawGoals(); } catch (err) { fail(err); }
+    };
+  };
+  $("gAddPrize").onclick = () => editPrize(null);
+  $("gPrizes").onclick = (e) => { const c = e.target.closest("[data-prize]"); if (c) editPrize(+c.dataset.prize); };
+
+  $("gThemes").onchange = async (e) => {
+    const id = e.target.dataset.theme;
+    if (!id) return;
+    game.lockedThemes = e.target.checked ? [...game.lockedThemes, id] : game.lockedThemes.filter((x) => x !== id);
+    try { await save(); } catch (err) { fail(err); }
+  };
+
+  // ---- Goals ----
+  const editGoal = (i, template) => {
+    const a = i == null ? { emoji: "🏆", title: "", description: "", kind: "screen", minutes: 60, days: 3, packages: [], repeat: false, scopeType: "all", scopeTargets: [], rewardMode: "specific", prizeIds: [], ...template } : game.achievements[i];
+    const classes = [...new Set(S.devices.map((d) => (d.className || "").trim()).filter(Boolean))].sort((x, y) => x.localeCompare(y, "he"));
+    openModal(i == null ? "יעד חדש" : "עריכת יעד", `
+      ${i == null ? `<div class="field"><label>התחלה מהירה</label><div class="emoji-row tpl">${GOAL_TEMPLATES.map((t, n) => `<button type="button" data-tpl="${n}">${t.emoji} ${esc(t.title)}</button>`).join("")}</div></div>` : ""}
+      <div class="form-grid"><div class="field" style="max-width:90px"><label>סמל</label><input class="input" name="emoji" value="${esc(a.emoji)}" style="text-align:center;font-size:22px"></div>
+        <div class="field"><label>שם היעד</label><input class="input" name="title" required value="${esc(a.title)}" placeholder="למשל: שלושה ימים רגועים"></div></div>
+      <div class="field"><label>הסבר לתלמיד (לא חובה)</label><input class="input" name="description" value="${esc(a.description)}"></div>
+      <div class="field"><label>מה צריך לעשות</label><div class="grid-3" style="gap:8px">
+        ${[["screen", "פחות זמן מסך", "בכל הטלפון"], ["apps", "פחות זמן באפליקציות", "שתבחרו"], ["manual", "ידני", "אתם מעניקים אותו"]].map(([k, t, d]) => `<label class="check"><input type="radio" name="kind" value="${k}" ${a.kind === k ? "checked" : ""}><span><b>${t}</b><small>${d}</small></span></label>`).join("")}</div></div>
+      <div id="gRule" class="stack" style="gap:12px"><div class="form-grid">
+        <div class="field"><label>פחות מכמה דקות ביום</label><input class="input" type="number" min="1" max="1440" name="minutes" value="${a.minutes}"></div>
+        <div class="field"><label>כמה ימים ברצף</label><input class="input" type="number" min="1" max="30" name="days" value="${a.days}"></div></div>
+        <div id="gApps"></div>
+        <label class="check"><input type="checkbox" name="repeat" ${a.repeat ? "checked" : ""}><span><b>אפשר לזכות שוב ושוב</b><small>אחרי כל זכייה הרצף מתחיל מחדש</small></span></label></div>
+      <div class="field"><label>למי היעד</label><select class="input" name="scopeType"><option value="all" ${a.scopeType === "all" ? "selected" : ""}>כל התלמידים</option><option value="class" ${a.scopeType === "class" ? "selected" : ""}>כיתות מסוימות</option><option value="device" ${a.scopeType === "device" ? "selected" : ""}>תלמידים מסוימים</option></select>
+        <div class="check-list" id="gScopeClass">${classes.map((c) => `<label><input type="checkbox" name="cls" value="${esc(c)}" ${a.scopeType === "class" && a.scopeTargets?.includes(c) ? "checked" : ""}> ${esc(c)}</label>`).join("") || '<span class="muted small">עדיין אין כיתות</span>'}</div>
+        <div class="check-list" id="gScopeDev">${S.devices.map((d) => { const pid = d.policyId || d.id; return `<label><input type="checkbox" name="dev" value="${esc(pid)}" ${a.scopeType === "device" && a.scopeTargets?.includes(pid) ? "checked" : ""}> ${esc(d.studentName || d.label)}</label>`; }).join("") || '<span class="muted small">עדיין אין תלמידים</span>'}</div></div>
+      <div class="field"><label>מה הפרס</label><select class="input" name="rewardMode">
+        <option value="specific" ${a.rewardMode === "specific" ? "selected" : ""}>פרס מסוים</option><option value="randomFrom" ${a.rewardMode === "randomFrom" ? "selected" : ""}>אקראי מבין כמה</option>
+        <option value="randomAll" ${a.rewardMode === "randomAll" ? "selected" : ""}>אקראי מכל הרשימה</option><option value="none" ${a.rewardMode === "none" ? "selected" : ""}>בלי פרס, רק הישג</option></select>
+        <div class="check-list" id="gPrizePick">${game.prizes.map((p) => `<label><input type="checkbox" name="pz" value="${esc(p.id)}" ${a.prizeIds?.includes(p.id) ? "checked" : ""}> ${esc(p.emoji)} ${esc(p.title)}</label>`).join("") || '<span class="muted small">הוסיפו קודם פרסים לרשימה</span>'}</div></div>
+      ${i == null ? "" : `<button type="button" class="btn danger sm" id="gDel" style="justify-self:start">${ic("trash")}מחיקת היעד</button>`}`,
+    async (f) => {
+      const checked = (n) => [...f.querySelectorAll(`[name="${n}"]:checked`)].map((x) => x.value);
+      const mode = f.rewardMode.value;
+      const prizeIds = mode === "specific" || mode === "randomFrom" ? checked("pz") : [];
+      if ((mode === "specific" || mode === "randomFrom") && !prizeIds.length) throw new Error("בחרו פרס ליעד");
+      if (mode === "specific" && prizeIds.length > 1) throw new Error("בפרס מסוים בוחרים פרס אחד. לכמה פרסים בחרו \"אקראי מבין כמה\"");
+      const packages = getApps ? getApps() : [];
+      if (f.kind.value === "apps" && !packages.length) throw new Error("בחרו אפליקציות ליעד");
+      const scopeType = f.scopeType.value;
+      const next = { id: a.id || "g" + randomToken(4), emoji: f.emoji.value.trim() || "🏆", title: f.title.value.trim(), description: f.description.value.trim(), kind: f.kind.value,
+        minutes: Math.max(1, parseInt(f.minutes.value, 10) || 60), days: Math.max(1, parseInt(f.days.value, 10) || 1), packages, repeat: f.repeat.checked,
+        scopeType, scopeTargets: scopeType === "class" ? checked("cls") : scopeType === "device" ? checked("dev") : [], rewardMode: mode, prizeIds };
+      if (i == null) game.achievements.push(next); else game.achievements[i] = next;
+      await save();
+      drawGoals();
+    });
+    const m = $("modal");
+    let getApps = appPicker($("gApps"), a.packages || [], false);
+    const sync = () => {
+      const k = m.querySelector('[name="kind"]:checked').value;
+      $("gRule").hidden = k === "manual"; $("gApps").hidden = k !== "apps";
+      const sc = m.querySelector('[name="scopeType"]').value;
+      $("gScopeClass").hidden = sc !== "class"; $("gScopeDev").hidden = sc !== "device";
+      const r = m.querySelector('[name="rewardMode"]').value;
+      $("gPrizePick").hidden = r === "none" || r === "randomAll";
+    };
+    m.querySelector("form").addEventListener("change", sync); sync();
+    const tpl = m.querySelector(".tpl");
+    if (tpl) tpl.onclick = (e) => { const b = e.target.closest("[data-tpl]"); if (b) { m.close(); editGoal(null, GOAL_TEMPLATES[+b.dataset.tpl]); } };
+    const del = $("gDel");
+    if (del) del.onclick = async () => {
+      if (!confirm(`למחוק את היעד "${a.title}"?`)) return;
+      game.achievements.splice(i, 1);
+      try { await save("נמחק"); m.close(); drawGoals(); } catch (err) { fail(err); }
+    };
+  };
+  $("gAddGoal").onclick = () => editGoal(null);
+  $("gGoals").onclick = (e) => { const c = e.target.closest("[data-goal]"); if (c) editGoal(+c.dataset.goal); };
+}
+
 // ----- Keys / policy cache -----------------------------------------------
 async function getKeys() {
   if (S.keys?.instId === S.inst.id) return S.keys;
@@ -1746,16 +2001,19 @@ async function renderStore() {
   const offCats = new Set(cfg.disabledCategories ?? catalog.categories.filter((c) => c.defaultOff).map((c) => c.id));
   const offApps = new Set(cfg.disabledApps || []);
   const extra = [...(cfg.extraApps || [])];
+  const extraCats = [...(cfg.extraCategories || [])];
   const ro = !can("editPolicy");
   const catTitle = Object.fromEntries(catalog.categories.map((c) => [c.id, c.title]));
   let current = "all", q = "", filter = "all", limit = 120, dirty = false;
 
   const isOn = (a) => !offCats.has(a.c) && !offApps.has(a.p);
-  const countIn = (id) => catalog.apps.filter((a) => a.c === id).length;
+  const countIn = (id) => catalog.apps.filter((a) => a.c === id).length + extra.filter((a) => a.c === id).length;
+  const isOwnCat = (id) => extraCats.some((c) => c.id === id);
+  const allCats = () => [...extraCats, ...catalog.categories];
   const enabledTotal = () => catalog.apps.filter(isOn).length + extra.length;
 
   main(head("החנות הכשרה", `<span id="stTotal"></span>`,
-    ro ? '<span class="pill warn">צפייה בלבד</span>' : `<button class="btn" id="stAdd">${ic("plus")}הוספת אפליקציה</button>`) + `
+    ro ? '<span class="pill warn">צפייה בלבד</span>' : `<button class="btn ghost" id="stAddCat">${ic("plus")}קטגוריה חדשה</button><button class="btn" id="stAdd">${ic("plus")}הוספת אפליקציה</button>`) + `
     <div class="callout" style="margin-top:0">${ic("info")}<div>
       החנות הכשרה ${pol.kosherStore !== false ? '<b style="color:var(--accent)">פעילה</b>' : '<b style="color:var(--danger)">כבויה</b>'} ·
       Google Play ${pol.playStore === "blocked" ? "<b>חסומה</b> — מתקינים רק מכאן" : "<b>פתוחה</b>"}.
@@ -1779,10 +2037,11 @@ async function renderStore() {
 
   const drawCats = () => {
     const rows = [`<div class="cat-row ${current === "all" ? "on" : ""}" data-cat="all"><span class="emo">🗂️</span><span class="nm">כל הקטגוריות<small>${catalog.apps.length} אפליקציות</small></span></div>`];
-    for (const c of catalog.categories) {
+    for (const c of allCats()) {
       const on = !offCats.has(c.id);
       rows.push(`<div class="cat-row ${current === c.id ? "on" : ""} ${on ? "" : "off"}" data-cat="${c.id}">
-        <span class="emo">${c.emoji || "📦"}</span><span class="nm">${esc(c.title)}<small>${countIn(c.id)} אפליקציות</small></span>
+        <span class="emo">${c.emoji || "📦"}</span><span class="nm">${esc(c.title)}<small>${countIn(c.id)} אפליקציות${isOwnCat(c.id) ? " · שלכם" : ""}</small></span>
+        ${isOwnCat(c.id) && !ro ? `<button class="icon-btn mini" data-delcat="${esc(c.id)}" title="מחיקת הקטגוריה">${ic("trash")}</button>` : ""}
         <label class="switch" title="${on ? "כיבוי הקטגוריה" : "הפעלת הקטגוריה"}"><input type="checkbox" data-cattoggle="${c.id}" ${on ? "checked" : ""} ${ro ? "disabled" : ""}><span></span></label></div>`);
     }
     $("stCats").innerHTML = rows.join("");
@@ -1809,8 +2068,8 @@ async function renderStore() {
       `<div class="empty" style="grid-column:1/-1">${ic("search")}<b>לא נמצאו אפליקציות</b></div>`;
     $("stMore").hidden = list.length <= limit;
     $("stMore").textContent = `הצגת עוד (${list.length - limit})`;
-    const extraShown = extra.filter((a) => current === "all" && (!needle || (a.n || "").toLowerCase().includes(needle) || a.p.includes(needle)));
-    $("stExtra").innerHTML = extraShown.length ? `<div class="panel"><div class="panel-head"><h2>נוספו על ידי מוסד הלימודים</h2><span class="pill blue">${extra.length}</span></div>
+    const extraShown = extra.filter((a) => (current === "all" || a.c === current) && (!needle || (a.n || "").toLowerCase().includes(needle) || a.p.includes(needle)));
+    $("stExtra").innerHTML = extraShown.length ? `<div class="panel"><div class="panel-head"><h2>נוספו על ידכם</h2><span class="pill blue">${extra.length}</span></div>
       <div class="panel-body"><div class="app-grid">${extraShown.map((a) => appCard({ ...a, i: "" }, true)).join("")}</div></div></div>` : "";
     $("stTotal").textContent = `${enabledTotal()} אפליקציות זמינות לתלמידים · מתוך ${catalog.apps.length + extra.length}`;
   };
@@ -1820,6 +2079,18 @@ async function renderStore() {
 
   $("stCats").addEventListener("click", (e) => {
     if (e.target.closest(".switch")) return;
+    const del = e.target.closest("[data-delcat]");
+    if (del) {
+      const c = extraCats.find((x) => x.id === del.dataset.delcat);
+      const inside = extra.filter((a) => a.c === c.id).length;
+      if (!confirm(`למחוק את הקטגוריה "${c.title}"?${inside ? ` ${inside} האפליקציות שבה יישארו בחנות תחת "נוספו על ידי מוסד הלימודים".` : ""}`)) return;
+      extraCats.splice(extraCats.indexOf(c), 1);
+      extra.forEach((a) => { if (a.c === c.id) delete a.c; });
+      offCats.delete(c.id);
+      if (current === c.id) current = "all";
+      drawCats(); drawGrid(); markDirty();
+      return;
+    }
     const row = e.target.closest("[data-cat]");
     if (!row) return;
     current = row.dataset.cat;
@@ -1856,7 +2127,7 @@ async function renderStore() {
   $("stSaveBtn").onclick = async () => {
     try {
       await setDoc(doc(db, "institutions", S.inst.id, "public", "store"), {
-        disabledCategories: [...offCats], disabledApps: [...offApps], extraApps: extra,
+        disabledCategories: [...offCats], disabledApps: [...offApps], extraApps: extra, extraCategories: extraCats,
         catalogVersion: catalog.version, updatedAt: serverTimestamp(), updatedBy: S.email,
       });
       dirty = false;
@@ -1865,6 +2136,23 @@ async function renderStore() {
       toast("החנות נשמרה. הטלפונים יתעדכנו תוך דקות");
     } catch (err) { fail(err); }
   };
+  $("stAddCat").onclick = () => openModal("קטגוריה חדשה", `
+    <div class="form-grid"><div class="field" style="max-width:90px"><label>סמל</label><input class="input" name="emoji" value="📁" style="text-align:center;font-size:22px"></div>
+      <div class="field"><label>שם הקטגוריה</label><input class="input" name="title" required placeholder="למשל: לימודי קודש"></div></div>
+    <div class="emoji-row">${["📁", "📚", "✡️", "🎓", "🎮", "🎵", "🧮", "🗺️", "💬", "🛠️", "🏫", "⭐"].map((e) => `<button type="button" data-e="${e}">${e}</button>`).join("")}</div>
+    <p class="muted small" style="margin:0">אחר כך מוסיפים אליה אפליקציות דרך "הוספת אפליקציה".</p>`,
+  async (f) => {
+    const title = f.title.value.trim();
+    if (allCats().some((c) => c.title === title)) throw new Error("כבר יש קטגוריה בשם הזה");
+    const c = { id: "c" + randomToken(4), title, emoji: f.emoji.value.trim() || "📁" };
+    extraCats.push(c);
+    current = c.id;
+    drawCats(); drawGrid(); markDirty();
+  });
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest?.(".emoji-row [data-e]");
+    if (b) { const input = $("modal").querySelector('[name="emoji"]'); if (input) input.value = b.dataset.e; }
+  });
   $("stAdd").onclick = () => openModal("הוספת אפליקציה לחנות", `
     <div class="field"><label>קישור ל-Google Play או שם החבילה</label>
       <input class="input ltr" name="pkg" placeholder="https://play.google.com/store/apps/details?id=…" required>
@@ -1872,19 +2160,24 @@ async function renderStore() {
     <div class="form-grid">
       <div class="field"><label>שם להצגה</label><input class="input" name="name" placeholder="כפי שיופיע בחנות"></div>
       <div class="field"><label>קטגוריה</label><select class="input" name="cat">
-        ${catalog.categories.map((c) => `<option value="${c.id}">${c.emoji || ""} ${esc(c.title)}</option>`).join("")}</select></div>
+        ${allCats().map((c) => `<option value="${c.id}" ${current === c.id ? "selected" : ""}>${c.emoji || ""} ${esc(c.title)}</option>`).join("")}</select></div>
     </div>`,
   async (f) => {
     const raw = f.pkg.value.trim();
     const pkg = (raw.match(/[?&]id=([A-Za-z0-9._]+)/) || [])[1] || raw;
     if (!PKG_RE.test(pkg)) throw new Error("לא זוהתה חבילה. הדביקו קישור מ-Google Play או שם חבילה כמו com.example.app");
-    if (catalog.apps.some((a) => a.p === pkg)) {
+    if (catalog.apps.some((a) => a.p === pkg) && isOwnCat(f.cat.value)) {
+      // A catalog app moved into a category of the institution's: its own entry wins on the phone.
+      offApps.delete(pkg);
+      if (!extra.some((a) => a.p === pkg)) extra.push({ p: pkg, n: f.name.value.trim() || catalog.apps.find((a) => a.p === pkg).n, c: f.cat.value });
+      current = f.cat.value;
+    } else if (catalog.apps.some((a) => a.p === pkg)) {
       offApps.delete(pkg);
       toast(`"${catalog.apps.find((a) => a.p === pkg).n}" כבר ברשימה, והיא הופעלה`);
     } else if (!extra.some((a) => a.p === pkg)) {
-      extra.push({ p: pkg, n: f.name.value.trim() || pkg, c: f.cat.value });
+      await appIndex();
+      extra.push({ p: pkg, n: f.name.value.trim() || pkgName(pkg), c: f.cat.value });
     }
-    current = "all";
     drawCats(); drawGrid(); markDirty();
   });
 }
