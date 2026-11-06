@@ -135,7 +135,7 @@ const LOCAL_CHANGE_LABELS = {
   filteringEnabled: "הסינון", playStore: "Google Play", blockedDomains: "אתרים חסומים", adBlock: "חוסם פרסומות",
   dnsServer: "שרת DNS", vpnEnabled: "סינון אתרים", downtimeEnabled: "שעות שינה", downtimeStartMinutes: "שעות שינה",
   downtimeEndMinutes: "שעות שינה", dailyDeviceLimitEnabled: "מגבלת זמן", dailyDeviceLimitMinutes: "מגבלת זמן",
-  essentialCountsTowardTime: "ספירת זמן", autoUpdate: "עדכון אוטומטי",
+  essentialCountsTowardTime: "ספירת זמן", autoUpdate: "עדכון אוטומטי", blockApkInstall: "התקנת קובצי APK",
 };
 
 function localChangesText(d) {
@@ -206,7 +206,7 @@ const DEFAULT_SETTINGS = {
   downtimeEnabled: false, downtimeStartMinutes: 22 * 60, downtimeEndMinutes: 7 * 60,
   dailyDeviceLimitEnabled: false, dailyDeviceLimitMinutes: 120, essentialAppPackages: [],
   blockedDomains: [], adBlock: false, dnsServer: "", vpnEnabled: true, essentialCountsTowardTime: false, autoUpdate: false,
-  playStore: "open", kosherStore: true,
+  playStore: "open", kosherStore: true, blockApkInstall: false,
 };
 const DEFAULT_TELEMETRY = { reportDomains: true, reportApps: true, intervalMinutes: 5 };
 
@@ -1908,6 +1908,7 @@ async function renderPolicy(scopeParam) {
         <label class="check"><input type="radio" name="playStore" value="open" ${s.playStore !== "blocked" ? "checked" : ""}><span><b>Google Play פתוחה</b><small>אפשר להתקין כל אפליקציה (אפליקציות חסומות עדיין ייחסמו)</small></span></label>
         <label class="check"><input type="radio" name="playStore" value="blocked" ${s.playStore === "blocked" ? "checked" : ""}><span><b>Google Play חסומה</b><small>מתקינים רק מהחנות הכשרה</small></span></label>
         <label class="check"><input type="checkbox" name="kosherStore" ${s.kosherStore !== false ? "checked" : ""}><span><b>החנות הכשרה פעילה</b><small>אייקון "החנות הכשרה" בטלפונים, עם האפליקציות שאישרתם</small></span></label>
+        <label class="check"><input type="checkbox" name="blockApkInstall" ${s.blockApkInstall ? "checked" : ""}><span><b>חסימת התקנות מקובצי APK</b><small>כל התקנה מקובץ מתבטלת מיד. עדכוני מסנן כשר והחנות הכשרה ממשיכים לעבוד</small></span></label>
       </div></div>
       <div class="panel" id="secMore"><div class="panel-head"><h2>עדכוני אפליקציה</h2></div><div class="panel-body">
         <label class="check"><input type="checkbox" name="autoUpdate" ${s.autoUpdate ? "checked" : ""}><span><b>עדכון אוטומטי</b><small>כשיוצאת גרסה חדשה, כל הטלפונים מתבקשים מיד להתעדכן, בלי ללחוץ על "עדכון אפליקציה"</small></span></label>
@@ -1951,6 +1952,7 @@ async function renderPolicy(scopeParam) {
       autoUpdate: f.autoUpdate.checked,
       playStore: f.playStore.value,
       kosherStore: f.kosherStore.checked,
+      blockApkInstall: f.blockApkInstall.checked,
     };
     const telemetry = { reportDomains: f.reportDomains.checked, reportApps: f.reportApps.checked, intervalMinutes: parseInt(f.intervalMinutes.value, 10) };
     await setDoc(doc(db, "institutions", S.inst.id, "public", "policy"), {
@@ -1977,7 +1979,7 @@ let STORE_CATALOG = null;
 
 async function storeCatalog() {
   if (!STORE_CATALOG) {
-    const res = await fetch("../store/catalog.json", { cache: "no-cache" });
+    const res = await fetch("../store/catalog-v2.json", { cache: "no-cache" });
     STORE_CATALOG = await res.json();
   }
   return STORE_CATALOG;
@@ -1999,6 +2001,8 @@ async function renderStore() {
   const pol = { ...DEFAULT_SETTINGS, ...(polSnap.exists() ? polSnap.data().settings : {}) };
   // Until the institution saves its own choice, categories marked defaultOff (news) start off.
   const offCats = new Set(cfg.disabledCategories ?? catalog.categories.filter((c) => c.defaultOff).map((c) => c.id));
+  // An opt-in category (games) is off until a manager turns it on, also where choices were already saved.
+  catalog.categories.filter((c) => c.optIn && !(cfg.enabledOptIn || []).includes(c.id)).forEach((c) => offCats.add(c.id));
   const offApps = new Set(cfg.disabledApps || []);
   const extra = [...(cfg.extraApps || [])];
   const extraCats = [...(cfg.extraCategories || [])];
@@ -2128,6 +2132,7 @@ async function renderStore() {
     try {
       await setDoc(doc(db, "institutions", S.inst.id, "public", "store"), {
         disabledCategories: [...offCats], disabledApps: [...offApps], extraApps: extra, extraCategories: extraCats,
+        enabledOptIn: catalog.categories.filter((c) => c.optIn && !offCats.has(c.id)).map((c) => c.id),
         catalogVersion: catalog.version, updatedAt: serverTimestamp(), updatedBy: S.email,
       });
       dirty = false;
