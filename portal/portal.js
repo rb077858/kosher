@@ -57,6 +57,8 @@ const ICONS = {
   sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
   globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  home: '<path d="M3 11 12 3l9 8M5 9.5V21h14V9.5M10 21v-6h4v6"/>',
   store: '<path d="M3 9l1.5-5h15L21 9M3 9h18v2a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0V9zM5 13v8h14v-8M10 21v-5h4v5"/>',
 };
 const ic = (name, extra = "") =>
@@ -275,6 +277,7 @@ $("btnResend").addEventListener("click", async () => {
 });
 $("btnSignOut").addEventListener("click", () => signOut(auth));
 
+$("btnPalette").onclick = openSearch;
 onAuthStateChanged(auth, boot);
 
 async function boot(user) {
@@ -311,12 +314,19 @@ window.addEventListener("hashchange", route);
 
 function route() {
   if (!S.user || $("viewApp").hidden) return;
-  window.onbeforeunload = null; // set by the store tab while it has unsaved changes
+  if (S.keepPage) { S.keepPage = false; return; } // the hash was only put back: the page and its edits stay
+  if (S.dirty && location.hash !== S.lastHash) {
+    if (!confirm("יש שינויים שלא נשמרו. לצאת בלי לשמור?")) { S.keepPage = true; location.hash = S.lastHash; return; }
+  }
+  S.dirty = false;
+  S.lastHash = location.hash;
+  S.onDevices = null;
+  window.onbeforeunload = null; // set by screens while they have unsaved changes
   closeDrawer();
   clearSubs();
   const [a, b, c, d] = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
-  if (!S.isSuper && (a !== "inst" || b !== S.manager.instId)) return go(`inst/${S.manager.instId}/devices`);
-  if (a === "inst" && b) return renderInstitution(b, c || "devices", d);
+  if (!S.isSuper && (a !== "inst" || b !== S.manager.instId)) return go(`inst/${S.manager.instId}/home`);
+  if (a === "inst" && b) return renderInstitution(b, c || "home", d);
   if (a === "institutions") return renderInstitutions();
   if (a === "managers") return renderManagers();
   if (a === "overview") return renderOverview();
@@ -330,6 +340,7 @@ function renderSide(items, ctx) {
       : `<a href="#/${it.href}" class="${it.on ? "on" : ""}">${ic(it.icon)}<span>${esc(it.label)}</span></a>`).join("");
 }
 function superSide(active) {
+  $("btnPalette").hidden = true;
   renderSide([
     { href: "overview", icon: "grid", label: "סקירה כללית", on: active === "overview" },
     { href: "institutions", icon: "building", label: "מוסדות", on: active === "institutions" },
@@ -390,7 +401,7 @@ function bindInstRows() {
   document.querySelectorAll("[data-inst]").forEach((r) => (r.onclick = (e) => {
     const ed = e.target.closest("[data-edit]");
     if (ed) { e.stopPropagation(); return getDoc(doc(db, "institutions", ed.dataset.edit)).then((s) => editInstitution({ id: s.id, ...s.data() })); }
-    go(`inst/${r.dataset.inst}/devices`);
+    go(`inst/${r.dataset.inst}/home`);
   }));
 }
 const emptyHtml = (icon, title, sub) => `<div class="empty">${ic(icon)}<b>${esc(title)}</b>${esc(sub)}</div>`;
@@ -547,10 +558,12 @@ function editManager(m, insts, fixedInstId) {
 // Institution workspace
 // ---------------------------------------------------------------------------
 const INST_TABS = [
-  { id: "devices", icon: "phone", label: "מכשירים" },
-  { id: "enroll", icon: "qr", label: "רישום מכשיר" },
-  { id: "policy", icon: "sliders", label: "מדיניות סינון" },
+  { id: "home", icon: "home", label: "סקירה" },
+  { id: "devices", icon: "phone", label: "תלמידים ומכשירים" },
+  { id: "time", icon: "clock", label: "זמני מסך" },
+  { id: "policy", icon: "sliders", label: "מה חסום" },
   { id: "store", icon: "store", label: "החנות הכשרה" },
+  { id: "enroll", icon: "qr", label: "רישום מכשיר" },
   { id: "codes", icon: "key", label: "קודי שחרור" },
   { id: "staff", icon: "users", label: "צוות", perm: "manageStaff" },
   { id: "info", icon: "info", label: "פרטי מוסד הלימודים" },
@@ -559,6 +572,12 @@ const INST_TABS = [
 function renderInstitution(instId, tab, arg) {
   main(loadingHtml);
   let first = true;
+  $("btnPalette").hidden = false;
+  // Kept for every tab: the overview, the devices list and the search all read S.devices.
+  S.subs.push(onSnapshot(query(collection(db, "devices"), where("instId", "==", instId)), (snap) => {
+    S.devices = markReRegistered(snap.docs.map((d) => ({ id: d.id, ...d.data() }))).sort((a, b) => ms(b.lastSeen) - ms(a.lastSeen));
+    S.onDevices?.();
+  }, fail));
   S.subs.push(onSnapshot(doc(db, "institutions", instId), (snap) => {
     if (!snap.exists()) { toast("מוסד הלימודים לא נמצא", true); return go(S.isSuper ? "institutions" : ""); }
     S.inst = { id: snap.id, ...snap.data() };
@@ -567,12 +586,14 @@ function renderInstitution(instId, tab, arg) {
       ...(S.isSuper ? [{ href: "institutions", icon: "back", label: "כל המוסדות" }, "-"] : []),
       ...tabs.map((t) => ({ href: `inst/${instId}/${t.id}`, icon: t.icon, label: t.label, on: t.id === tab })),
     ], { label: S.isSuper ? "מוסד" : (S.manager.role === "owner" ? "מנהל מוסד" : "צוות"), title: S.inst.name });
-    if (first) { first = false; (TAB_RENDER[tab] || TAB_RENDER.devices)(arg); }
+    if (first) { first = false; (TAB_RENDER[tab] || TAB_RENDER.home)(arg); }
   }, fail));
 }
 
 const TAB_RENDER = {
+  home: renderHome,
   devices: renderDevices,
+  time: renderTime,
   enroll: renderEnroll,
   policy: renderPolicy,
   store: renderStore,
@@ -586,9 +607,9 @@ function head(title, sub, actions = "") {
 }
 
 // ----- Devices ------------------------------------------------------------
-function renderDevices() {
+function renderDevices(preset) {
   const inst = S.inst;
-  main(head("מכשירים", `${esc(inst.name)} · מצב כל מכשירי התלמידים בזמן אמת`,
+  main(head("תלמידים ומכשירים", `${esc(inst.name)} · מצב כל מכשירי התלמידים בזמן אמת`,
     `${can("remoteCommands") ? `<button class="btn ghost" id="btnRefreshAll">${ic("sync")}רענון</button>` : ""}
      ${can("editPolicy") ? `<button class="btn ghost" id="btnPushUpdate" disabled>${ic("download")}עדכון אפליקציה</button>` : ""}
      <a class="btn" href="#/inst/${inst.id}/enroll">${ic("plus")}רישום מכשיר</a>`) + `
@@ -597,16 +618,35 @@ function renderDevices() {
         <input class="input" id="devSearch" placeholder="חיפוש תלמיד, כיתה או דגם">
         <select class="input" id="devFilter" style="min-width:150px">
           <option value="all">כל המכשירים</option><option value="online">מחוברים</option>
-          <option value="offline">לא מחוברים</option><option value="issues">עם בעיות הגנה</option></select></div>
-      </div><div class="rows" id="devRows">${loadingHtml}</div></div>`);
+          <option value="offline">לא מחוברים</option><option value="issues">צריכים טיפול</option></select></div>
+      </div><div class="class-chips" id="devClasses"></div><div class="rows" id="devRows">${loadingHtml}</div></div>
+    <div class="save-bar" id="devBulk" hidden><span id="devBulkN"></span><span class="row-actions">
+      ${can("remoteCommands") ? `<button class="btn sm ghost light" data-bulk="message">${ic("msg")}הודעה</button>
+      <button class="btn sm ghost light" data-bulk="syncPolicy">${ic("sync")}סנכרון</button>
+      <button class="btn sm ghost light" data-bulk="lockNow">${ic("lock")}נעילה</button>` : ""}
+      <button class="btn sm ghost light" data-bulk="class">${ic("users")}העברה לכיתה</button>
+      <button class="btn sm ghost light" data-bulk="clear">ביטול</button></span></div>`);
+  S.selected = new Set();
+  S.classFilter = "";
+  if (preset === "issues") $("devFilter").value = "issues";
   const draw = () => drawDevices();
   $("devSearch").oninput = draw;
   $("devFilter").onchange = draw;
+  $("devClasses").onclick = (e) => { const b = e.target.closest("[data-c]"); if (b) { S.classFilter = b.dataset.c; draw(); } };
+  $("devBulk").onclick = async (e) => {
+    const b = e.target.closest("[data-bulk]");
+    if (!b) return;
+    const list = S.devices.filter((d) => S.selected.has(d.id));
+    const what = b.dataset.bulk;
+    if (what === "clear") { S.selected.clear(); return draw(); }
+    if (what === "message") return messageModal(list);
+    if (what === "class") return moveClassModal(list);
+    if (what === "lockNow" && !confirm(`לנעול ${list.length} טלפונים?`)) return;
+    try { await sendToDevices(list, what, {}); toast(`נשלח ל-${list.length} טלפונים`); } catch (err) { fail(err); }
+  };
+  S.onDevices = draw;
   latestRelease().then(() => draw());
-  S.subs.push(onSnapshot(query(collection(db, "devices"), where("instId", "==", inst.id)), (snap) => {
-    S.devices = markReRegistered(snap.docs.map((d) => ({ id: d.id, ...d.data() }))).sort((a, b) => ms(b.lastSeen) - ms(a.lastSeen));
-    draw();
-  }, fail));
+  draw();
   // Re-draw every 30s so "online"/"ago" labels stay accurate without new snapshots.
   const t = setInterval(draw, 30000);
   S.subs.push(() => clearInterval(t));
@@ -622,29 +662,43 @@ function drawDevices() {
       <div class="bar"><i style="width:${max ? Math.min(100, (all.length / max) * 100) : 0}%"></i></div></div>
     <div class="card stat"><small>מחוברים עכשיו</small><b style="color:var(--accent)">${online}</b></div>
     <div class="card stat"><small>לא מחוברים</small><b>${all.length - online}</b></div>
-    <div class="card stat"><small>בעיות הגנה</small><b style="color:${issues ? "var(--danger)" : "inherit"}">${issues}</b></div>`;
+    <div class="card stat"><small>צריכים טיפול</small><b style="color:${issues ? "var(--danger)" : "inherit"}">${issues}</b></div>`;
   const q = $("devSearch").value.trim().toLowerCase(), f = $("devFilter").value;
   const list = all.filter((d) => {
     if (f === "online" && !isOnline(d)) return false;
     if (f === "offline" && isOnline(d)) return false;
     if (f === "issues" && !deviceIssues(d).length) return false;
+    if (S.classFilter && (d.className || "").trim() !== S.classFilter) return false;
     return !q || [d.studentName, d.className, d.model, d.label].some((v) => (v || "").toLowerCase().includes(q));
   });
+  const classes = [...new Set(all.map((d) => (d.className || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "he"));
+  $("devClasses").innerHTML = classes.length ? [["", "כל הכיתות"], ...classes.map((c) => [c, c])].map(([v, t]) =>
+    `<button type="button" data-c="${esc(v)}" class="${S.classFilter === v ? "on" : ""}">${esc(t)}<small>${v ? all.filter((d) => (d.className || "").trim() === v).length : all.length}</small></button>`).join("") : "";
   if (!all.length) {
     $("devRows").innerHTML = emptyHtml("phone", "עדיין לא נרשמו מכשירים", "בלשונית \"רישום מכשיר\" יש ברקוד שסורקים באפליקציה בטלפון של התלמיד");
     return;
   }
   $("devRows").innerHTML = list.length ? list.map((d) => {
     const iss = deviceIssues(d);
-    return `<div class="row" data-dev="${esc(d.id)}">
+    return `<div class="row sel" data-dev="${esc(d.id)}">
+      <input type="checkbox" class="pick" data-pick="${esc(d.id)}" ${S.selected?.has(d.id) ? "checked" : ""} aria-label="בחירה">
       <div class="dev-ic">${ic("phone")}<span class="st ${isLive(d) ? "live" : isOnline(d) ? "on" : ""}"></span></div>
       <div class="t"><b>${esc(d.studentName || d.label || "ללא שם")}</b>
         <small>${esc([d.className, [d.manufacturer, d.model].filter(Boolean).join(" ")].filter(Boolean).join(" · "))} · ${isOnline(d) ? (d.currentAppName ? "עכשיו ב" + esc(d.currentAppName) : "מחובר") : ago(d.lastSeen)}</small></div>
       <div class="r">${iss.length ? `<span class="pill red" title="${esc(iss.join(", "))}">${esc(iss[0])}${iss.length > 1 ? " +" + (iss.length - 1) : ""}</span>` : ""}
         ${isOutdated(d) ? '<span class="pill warn">גרסה ישנה</span>' : ""}
+        ${d.usageToday ? `<span class="pill" title="זמן מסך היום">${ic("clock", 'style="width:13px;height:13px"')}${fmtMinutes(d.usageToday.minutes || 0)}</span>` : ""}
         ${d.battery != null ? `<span class="pill">${d.charging ? "⚡" : ""}${d.battery}%</span>` : ""}</div></div>`;
   }).join("") : emptyHtml("phone", "אין תוצאות", "נסו חיפוש או סינון אחר");
-  document.querySelectorAll("[data-dev]").forEach((r) => (r.onclick = () => openDevice(r.dataset.dev)));
+  document.querySelectorAll("#devRows [data-dev]").forEach((r) => (r.onclick = (e) => {
+    if (e.target.dataset.pick) return;
+    openDevice(r.dataset.dev);
+  }));
+  document.querySelectorAll("#devRows [data-pick]").forEach((c) => (c.onchange = () => {
+    if (c.checked) S.selected.add(c.dataset.pick); else S.selected.delete(c.dataset.pick);
+    updateBulk();
+  }));
+  updateBulk();
 
   const refresh = $("btnRefreshAll");
   if (refresh) refresh.onclick = () => refreshAll(refresh);
@@ -656,6 +710,13 @@ function drawDevices() {
     upd.title = !RELEASE ? "אין מידע על גרסה חדשה" : outdated ? `${outdated} מכשירים בגרסה ישנה` : "כל המכשירים מעודכנים";
     upd.onclick = () => pushUpdate();
   }
+}
+
+function updateBulk() {
+  const bar = $("devBulk");
+  if (!bar) return;
+  bar.hidden = !S.selected.size;
+  $("devBulkN").textContent = `${S.selected.size} נבחרו`;
 }
 
 /**
@@ -757,7 +818,9 @@ function buildDrawer(d) {
       <h2 id="dTitle"></h2><button class="icon-btn" id="dClose" aria-label="סגירה">${ic("close")}</button></div>
     <div class="d-body">
       <div id="dIssues"></div>
+      <div class="panel" id="dUsageP" hidden><div class="panel-head"><h2>זמן מסך היום</h2><b id="dUsageT"></b></div><div class="panel-body" id="dUsage"></div></div>
       <div class="kv" id="dKv"></div>
+      <details class="faq" style="margin:0"><summary>פרטים טכניים</summary><div class="kv" id="dKv2" style="margin-bottom:12px"></div></details>
 
       ${can("liveView") ? `<div class="panel"><div class="panel-head"><h2>צפייה חיה</h2><span id="dLiveState" class="pill"></span></div>
         <div class="panel-body stack" style="gap:10px"><p class="muted small" style="margin:0">המכשיר ידווח כל כמה שניות במשך 10 דקות (כשהוא מחובר לאינטרנט).</p>
@@ -793,7 +856,8 @@ function buildDrawer(d) {
         <div class="field"><label>כיתה</label><input class="input" name="className"></div>
         <div class="field full"><label>הערות</label><textarea class="input" name="notes" rows="2"></textarea></div>
         <div class="full row-actions"><button class="btn sm" type="submit">שמירה</button>
-          <button class="btn sm ghost" type="button" id="dPolicy">${ic("sliders")}חסימות לתלמיד הזה</button>
+          <button class="btn sm ghost" type="button" id="dPolicy">${ic("sliders")}מה חסום לתלמיד</button>
+          <button class="btn sm ghost" type="button" id="dTime">${ic("clock")}זמני מסך לתלמיד</button>
           <button class="btn sm ghost" type="button" id="dReconnect">${ic("qr")}חיבור מחדש</button>
           <button class="btn sm danger" type="button" id="dRemove">${ic("trash")}הסרת המכשיר ממוסד הלימודים</button></div></form></div>
     </div>`;
@@ -811,6 +875,7 @@ function buildDrawer(d) {
   $("dRemove").onclick = () => removeDevice(d);
   $("dReconnect").onclick = () => reconnectDevice(d);
   $("dPolicy").onclick = () => go(`inst/${S.inst.id}/policy/${encodeURIComponent("device:" + d.id)}`);
+  $("dTime").onclick = () => go(`inst/${S.inst.id}/time/${encodeURIComponent("device:" + d.id)}`);
 
   $("dChallenge").oninput = async (e) => {
     const ch = e.target.value.replace(/\D/g, "");
@@ -886,7 +951,8 @@ function updateDrawer(d) {
   const p = d.protection || {};
   const yes = (v) => v === true ? '<span class="yes">פעיל</span>' : v === false ? '<span style="color:var(--danger);font-weight:700">כבוי</span>' : "—";
   const iss = deviceIssues(d);
-  $("dIssues").innerHTML = (iss.length ? `<div class="callout danger">${ic("shield")}<div><b>בעיות הגנה:</b> ${esc(iss.join(" · "))}</div></div>` : "") +
+  const others = iss.filter((x) => !x.startsWith("שונה ידנית")); // the local changes get their own box below
+  $("dIssues").innerHTML = (others.length ? `<div class="callout danger">${ic("shield")}<div><b>בעיות הגנה:</b> ${esc(others.join(" · "))}</div></div>` : "") +
     (d.localChanges?.length ? `<div class="callout warn">${ic("sliders")}<div style="flex:1"><b>הגדרות ששונו ידנית בטלפון:</b> ${esc(localChangesText(d))}.
       <br><span class="small muted">הטלפון לא פועל כרגע לפי מדיניות מוסד הלימודים בנושאים האלה.</span>
       ${can("remoteCommands") ? `<div style="margin-top:10px"><button class="btn sm" id="dRestorePolicy">${ic("sync")}החזרה למדיניות מוסד הלימודים</button></div>` : ""}</div></div>` : "");
@@ -894,13 +960,22 @@ function updateDrawer(d) {
   if (restore) restore.onclick = () => addDoc(collection(db, "devices", d.id, "commands"), {
     type: "syncPolicy", payload: {}, status: "pending", createdAt: serverTimestamp(), createdBy: S.email,
   }).then(() => toast("נשלח. הטלפון יחזור למדיניות מוסד הלימודים תוך שניות"), fail);
-  $("dKv").innerHTML = [
+  const kvHtml = (rows) => rows.map(([k, v]) => `<div><small>${k}</small><span>${typeof v === "string" && v.startsWith("<") ? v : esc(v)}</span></div>`).join("");
+  const usage = d.usageToday;
+  $("dUsageP").hidden = !usage;
+  if (usage) {
+    $("dUsageT").textContent = fmtMinutes(usage.minutes || 0);
+    appIndex().then(() => { if ($("dUsage")) $("dUsage").innerHTML = usageBars((usage.top || []).map((a) => [a.p, a.m])) || '<span class="muted small">אין עדיין שימוש היום</span>'; });
+  }
+  $("dKv").innerHTML = kvHtml([
     ["מצב", isLive(d) ? "צפייה חיה" : isOnline(d) ? "מחובר" : "לא מחובר · " + ago(d.lastSeen)],
-    ["עדכון אחרון", fmtDateTime(d.lastSeen)],
     ["אפליקציה פתוחה", d.currentAppName || (d.currentApp ? appLabel(d.currentApp) : "—")],
     ["סוללה", d.battery != null ? `${d.battery}%${d.charging ? " · בטעינה" : ""}` : "—"],
-    ["רשת", { wifi: "Wi-Fi", cell: "סלולר", none: "ללא" }[d.network] || "—"],
     ["חבילת סינון", CATALOG.profiles.find((p) => p.id === d.profileId)?.title || "—"],
+  ]);
+  $("dKv2").innerHTML = kvHtml([
+    ["עדכון אחרון", fmtDateTime(d.lastSeen)],
+    ["רשת", { wifi: "Wi-Fi", cell: "סלולר", none: "ללא" }[d.network] || "—"],
     ["דגם", [d.manufacturer, d.model].filter(Boolean).join(" ") || "—"],
     ["אנדרואיד / גרסה", `${d.androidVersion || "?"} / ${d.appVersion || "?"}`],
     ["סינון", d.filteringEnabled === false ? '<span style="color:var(--danger);font-weight:700">כבוי</span>' : '<span class="yes">פעיל</span>'],
@@ -913,7 +988,7 @@ function updateDrawer(d) {
     ["שעון", p.clock === false ? '<span style="color:var(--danger);font-weight:700">שונה ידנית</span>' : p.clock === true ? '<span class="yes">תקין</span>' : "—"],
     ["תווית מכשיר", `<span class="mono">${esc(d.label || "—")}</span>`],
     ["נרשם", fmtDateTime(d.enrolledAt)],
-  ].map(([k, v]) => `<div><small>${k}</small><span>${typeof v === "string" && v.startsWith("<") ? v : esc(v)}</span></div>`).join("");
+  ]);
   if ($("dLiveState")) {
     $("dLiveState").className = "pill " + (isLive(d) ? "red" : "");
     $("dLiveState").textContent = isLive(d) ? `פעיל עד ${fmtTime(ms(d.liveUntil))}` : "כבוי";
@@ -937,6 +1012,430 @@ async function removeDevice(d) {
     closeDrawer();
     toast("המכשיר הוסר. הסינון יוסר מהטלפון");
   } catch (e) { fail(e); }
+}
+
+// ----- Home ---------------------------------------------------------------
+// The first thing a manager sees: what needs attention, and the things done most often.
+function renderHome() {
+  const inst = S.inst;
+  main(head(`שלום${S.user.displayName ? ", " + esc(S.user.displayName.split(" ")[0]) : ""}`, esc(inst.name)) + `
+    <div class="grid-4" style="margin-bottom:22px" id="hStats"></div>
+    <div id="hSteps"></div>
+    <div class="home-grid">
+      <div class="panel"><div class="panel-head"><h2>צריך טיפול</h2><a class="btn sm ghost" href="#/inst/${inst.id}/devices">כל המכשירים</a></div>
+        <div class="rows" id="hIssues">${loadingHtml}</div></div>
+      <div class="stack">
+        <div class="panel"><div class="panel-head"><h2>פעולות מהירות</h2></div><div class="panel-body quick">
+          <a href="#/inst/${inst.id}/enroll">${ic("qr")}<span>רישום מכשיר</span></a>
+          <a href="#/inst/${inst.id}/time">${ic("clock")}<span>זמני מסך</span></a>
+          <a href="#/inst/${inst.id}/policy">${ic("sliders")}<span>מה חסום</span></a>
+          <a href="#/inst/${inst.id}/store">${ic("store")}<span>החנות הכשרה</span></a>
+          ${can("remoteCommands") ? `<button id="hMsgAll">${ic("msg")}<span>הודעה לתלמידים</span></button>` : ""}
+          <a href="#/inst/${inst.id}/codes">${ic("key")}<span>קוד שחרור</span></a>
+        </div></div>
+        <div class="panel"><div class="panel-head"><h2>זמן מסך היום</h2><a class="btn sm ghost" href="#/inst/${inst.id}/time">הגדרה</a></div>
+          <div class="panel-body" id="hUsage"></div></div>
+      </div>
+    </div>`);
+  const msg = $("hMsgAll");
+  if (msg) msg.onclick = () => messageModal(S.devices);
+  const draw = () => {
+    if (!$("hStats")) return;
+    const all = S.devices, max = inst.maxStudents || 0;
+    const online = all.filter(isOnline).length;
+    const withIssues = all.filter((d) => deviceIssues(d).length);
+    const outdated = all.filter(isOutdated);
+    $("hStats").innerHTML = `
+      <a class="card stat link" href="#/inst/${inst.id}/devices"><small>תלמידים רשומים</small><b>${all.length}<span class="muted" style="font-size:16px"> / ${max}</span></b>
+        <div class="bar"><i style="width:${max ? Math.min(100, (all.length / max) * 100) : 0}%"></i></div></a>
+      <a class="card stat link" href="#/inst/${inst.id}/devices"><small>מחוברים עכשיו</small><b style="color:var(--accent)">${online}</b></a>
+      <a class="card stat link" href="#/inst/${inst.id}/devices/issues"><small>צריכים טיפול</small><b style="color:${withIssues.length ? "var(--danger)" : "inherit"}">${withIssues.length}</b></a>
+      <a class="card stat link" href="#/inst/${inst.id}/devices"><small>בגרסה ישנה</small><b>${outdated.length}</b></a>`;
+    $("hSteps").innerHTML = all.length ? "" : `<div class="panel" style="margin-bottom:22px"><div class="panel-head"><h2>שלושה צעדים ואתם מוכנים</h2></div><div class="panel-body">
+      <ol class="steps" style="gap:10px">
+        <li><h4>קובעים מה חסום</h4><p><a href="#/inst/${inst.id}/policy">בוחרים חבילת סינון</a>, ואם רוצים גם <a href="#/inst/${inst.id}/time">זמני מסך</a>.</p></li>
+        <li><h4>בוחרים מה בחנות</h4><p><a href="#/inst/${inst.id}/store">החנות הכשרה</a> כבר מלאה. אפשר לכבות מה שלא מתאים.</p></li>
+        <li><h4>רושמים טלפון ראשון</h4><p><a href="#/inst/${inst.id}/enroll">סורקים את הברקוד</a> באפליקציה בטלפון של התלמיד.</p></li>
+      </ol></div></div>`;
+    $("hIssues").innerHTML = withIssues.length ? withIssues.slice(0, 8).map((d) => {
+      const iss = deviceIssues(d);
+      return `<div class="row" data-dev="${esc(d.id)}"><div class="dev-ic">${ic("phone")}<span class="st ${isOnline(d) ? "on" : ""}"></span></div>
+        <div class="t"><b>${esc(d.studentName || d.label || "ללא שם")}</b><small>${esc(d.className || "")}</small></div>
+        <div class="r"><span class="pill red" title="${esc(iss.join(", "))}">${esc(iss[0])}${iss.length > 1 ? " +" + (iss.length - 1) : ""}</span></div></div>`;
+    }).join("") : all.length ? emptyHtml("shield", "הכל תקין", "כל המכשירים מוגנים") : emptyHtml("phone", "עדיין אין מכשירים", "כשיירשמו מכשירים, כאן יופיע מה דורש טיפול");
+    document.querySelectorAll("#hIssues [data-dev]").forEach((r) => (r.onclick = () => openDevice(r.dataset.dev)));
+    const reported = all.filter((d) => d.usageToday);
+    const perApp = {};
+    reported.forEach((d) => (d.usageToday.top || []).forEach((a) => { perApp[a.p] = (perApp[a.p] || 0) + a.m; }));
+    const top = Object.entries(perApp).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const avg = reported.length ? Math.round(reported.reduce((n, d) => n + (d.usageToday.minutes || 0), 0) / reported.length) : 0;
+    if (reported.length && !APP_INDEX) appIndex().then(draw);
+    $("hUsage").innerHTML = reported.length ? `<div class="muted small" style="margin-bottom:10px">בממוצע <b>${fmtMinutes(avg)}</b> לתלמיד</div>${usageBars(top)}`
+      : '<span class="muted small">יופיע כאן אחרי שמכשירים ידווחו</span>';
+  };
+  S.onDevices = draw;
+  latestRelease().then(draw);
+  draw();
+}
+
+const fmtMinutes = (m) => (m >= 60 ? `${Math.floor(m / 60)} שע'${m % 60 ? ` ${m % 60} דק'` : ""}` : `${m} דק'`);
+function usageBars(entries) {
+  const max = Math.max(1, ...entries.map(([, m]) => m));
+  return entries.map(([p, m]) => `<div class="ubar"><span class="n">${appIconHtml(p, 24)}${esc(pkgName(p))}</span><span class="m">${fmtMinutes(m)}</span>
+    <div class="bar"><i style="width:${(m / max) * 100}%"></i></div></div>`).join("");
+}
+
+// ----- Commands to several phones ---------------------------------------------
+async function sendToDevices(devices, type, payload = {}) {
+  for (let i = 0; i < devices.length; i += 400) {
+    const b = writeBatch(db);
+    devices.slice(i, i + 400).forEach((d) => b.set(doc(collection(db, "devices", d.id, "commands")), {
+      type, payload, status: "pending", createdAt: serverTimestamp(), createdBy: S.email,
+    }));
+    await b.commit();
+  }
+}
+
+function messageModal(devices) {
+  const classes = [...new Set(devices.map((d) => (d.className || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "he"));
+  openModal("הודעה לתלמידים", `
+    <div class="field"><label>ההודעה</label><textarea class="input" name="text" rows="3" required placeholder="תופיע כהתראה בטלפון"></textarea></div>
+    ${classes.length ? `<div class="field"><label>למי</label><select class="input" name="cls"><option value="">כל ${devices.length} הטלפונים</option>
+      ${classes.map((c) => `<option>${esc(c)}</option>`).join("")}</select></div>` : ""}`,
+  async (f) => {
+    const list = f.cls?.value ? devices.filter((d) => (d.className || "").trim() === f.cls.value) : devices;
+    await sendToDevices(list, "message", { text: f.text.value.trim() });
+    toast(`נשלח ל-${list.length} טלפונים`);
+  }, "שליחה");
+}
+
+function moveClassModal(devices) {
+  openModal(`העברה לכיתה · ${devices.length} תלמידים`, `
+    <div class="field"><label>שם הכיתה</label><input class="input" name="cls" list="classList" required>
+      <datalist id="classList">${[...new Set(S.devices.map((d) => d.className).filter(Boolean))].map((c) => `<option>${esc(c)}</option>`).join("")}</datalist></div>`,
+  async (f) => {
+    const b = writeBatch(db);
+    devices.forEach((d) => b.update(doc(db, "devices", d.id), { className: f.cls.value.trim() }));
+    await b.commit();
+    toast("הועברו");
+  });
+}
+
+// ----- Search everywhere (Ctrl+K) ----------------------------------------------
+function openSearch() {
+  if (!S.inst) return;
+  const m = $("palette");
+  m.innerHTML = `<input class="input" id="palIn" placeholder="חיפוש תלמיד, כיתה או מסך…" autocomplete="off"><div id="palOut"></div>`;
+  const pages = [...INST_TABS.filter((t) => !t.perm || can(t.perm)).map((t) => ({ icon: t.icon, title: t.label, sub: "מסך", go: () => go(`inst/${S.inst.id}/${t.id}`) }))];
+  const classes = [...new Set(S.devices.map((d) => (d.className || "").trim()).filter(Boolean))];
+  const draw = () => {
+    const q = $("palIn").value.trim().toLowerCase();
+    const hit = (s) => (s || "").toLowerCase().includes(q);
+    const out = [
+      ...S.devices.filter((d) => q && [d.studentName, d.label, d.className, d.model].some(hit)).slice(0, 8)
+        .map((d) => ({ icon: "phone", title: d.studentName || d.label, sub: d.className || "תלמיד", go: () => openDevice(d.id) })),
+      ...classes.filter((c) => q && hit(c)).slice(0, 4).flatMap((c) => [
+        { icon: "clock", title: `זמני מסך · ${c}`, sub: "כיתה", go: () => go(`inst/${S.inst.id}/time/${encodeURIComponent("class:" + c)}`) },
+        { icon: "sliders", title: `מה חסום · ${c}`, sub: "כיתה", go: () => go(`inst/${S.inst.id}/policy/${encodeURIComponent("class:" + c)}`) },
+      ]),
+      ...pages.filter((p) => !q || hit(p.title)),
+    ];
+    $("palOut").innerHTML = out.map((o, i) => `<button type="button" data-i="${i}" class="${i === sel ? "on" : ""}">${ic(o.icon)}<b>${esc(o.title)}</b><small>${esc(o.sub)}</small></button>`).join("")
+      || '<div class="empty" style="padding:24px">לא נמצא</div>';
+    current = out;
+  };
+  let sel = 0, current = [];
+  const pick = (o) => { if (o) { m.close(); o.go(); } };
+  $("palIn").oninput = () => { sel = 0; draw(); };
+  $("palIn").onkeydown = (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); sel = Math.min(current.length - 1, sel + 1); draw(); }
+    if (e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(0, sel - 1); draw(); }
+    if (e.key === "Enter") { e.preventDefault(); pick(current[sel]); }
+  };
+  $("palOut").onclick = (e) => { const b = e.target.closest("[data-i]"); if (b) pick(current[+b.dataset.i]); };
+  m.onclick = (e) => { if (e.target === m) m.close(); };
+  m.showModal();
+  draw();
+  $("palIn").focus();
+}
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); openSearch(); }
+});
+
+// ----- App picker -----------------------------------------------------------
+// Everything a manager picks apps with: type a name in Hebrew or English and click it, or paste a
+// Google Play link. Names and icons come from the store catalog.
+let APP_INDEX = null;
+async function appIndex() {
+  if (APP_INDEX) return APP_INDEX;
+  const map = new Map(Object.entries(APP_NAMES).map(([p, n]) => [p, { p, n }]));
+  try { (await storeCatalog()).apps.forEach((a) => map.set(a.p, { p: a.p, n: a.n, i: a.i })); } catch { /* names only */ }
+  APP_INDEX = map;
+  return map;
+}
+function appIconHtml(pkg, size = 28) {
+  const a = APP_INDEX?.get(pkg);
+  const style = `width:${size}px;height:${size}px;border-radius:${Math.round(size * 0.26)}px`;
+  return a?.i ? `<img class="aic" src="${esc(playIcon(a.i))}" alt="" loading="lazy" style="${style}">`
+    : `<span class="aic ph" style="${style};font-size:${Math.round(size * 0.45)}px">${esc((a?.n || pkg)[0].toUpperCase())}</span>`;
+}
+const pkgName = (pkg) => APP_INDEX?.get(pkg)?.n || appLabel(pkg);
+
+/** Returns a getter for the current list; getter.add(packages) adds more from outside. */
+function appPicker(container, initial, readOnly, onChange = () => {}) {
+  const list = [...initial];
+  const id = "ap" + Math.random().toString(36).slice(2, 8);
+  container.innerHTML = `<div class="chips" id="${id}_chips"></div>
+    ${readOnly ? "" : `<div class="picker"><input class="input" id="${id}_in" placeholder="הקלידו שם אפליקציה, או הדביקו קישור מ-Google Play" autocomplete="off">
+      <div class="picker-menu" id="${id}_menu" hidden></div></div>`}`;
+  const drawChips = () => {
+    $(id + "_chips").innerHTML = list.map((p, i) => `<span class="chip app" title="${esc(p)}">${appIconHtml(p, 22)}${esc(pkgName(p))}${readOnly ? "" : `<button type="button" data-i="${i}" aria-label="הסרה">×</button>`}</span>`).join("")
+      || '<span class="muted small">עדיין אין אפליקציות</span>';
+  };
+  const addOne = (p) => { if (!list.includes(p)) list.push(p); };
+  appIndex().then(() => { if ($(id + "_chips")) drawChips(); });
+  drawChips();
+  const getter = () => list;
+  getter.add = (pkgs) => { pkgs.forEach(addOne); drawChips(); onChange(); };
+  if (readOnly) return getter;
+  const inp = $(id + "_in"), menu = $(id + "_menu");
+  let results = [];
+  const drawMenu = async () => {
+    const q = inp.value.trim().toLowerCase();
+    if (!q) { menu.hidden = true; return; }
+    const map = await appIndex();
+    const pasted = (inp.value.match(/[?&]id=([A-Za-z0-9._]+)/) || [])[1] || (PKG_RE.test(inp.value.trim()) ? inp.value.trim() : null);
+    results = [...map.values()].filter((a) => !list.includes(a.p) && (a.n.toLowerCase().includes(q) || a.p.toLowerCase().includes(q))).slice(0, 8);
+    if (pasted && !results.some((a) => a.p === pasted) && !list.includes(pasted)) results.unshift({ p: pasted, n: map.get(pasted)?.n || pasted });
+    menu.innerHTML = results.map((a, i) => `<button type="button" data-r="${i}">${appIconHtml(a.p, 30)}<b>${esc(a.n)}</b><small>${esc(a.p)}</small></button>`).join("")
+      || '<div class="muted small" style="padding:10px">לא נמצאה אפליקציה בשם הזה. אפשר להדביק קישור מ-Google Play.</div>';
+    menu.hidden = false;
+  };
+  const choose = (a) => { addOne(a.p); inp.value = ""; menu.hidden = true; drawChips(); onChange(); inp.focus(); };
+  inp.oninput = drawMenu;
+  inp.onfocus = drawMenu;
+  inp.onblur = () => setTimeout(() => { menu.hidden = true; }, 150);
+  inp.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); if (results[0] && !menu.hidden) choose(results[0]); } };
+  menu.onmousedown = (e) => { const b = e.target.closest("[data-r]"); if (b) { e.preventDefault(); choose(results[+b.dataset.r]); } };
+  $(id + "_chips").onclick = (e) => { const b = e.target.closest("[data-i]"); if (b) { list.splice(+b.dataset.i, 1); drawChips(); onChange(); } };
+  return getter;
+}
+
+// ----- Unsaved changes ------------------------------------------------------
+function saveBar(onSave) {
+  const bar = document.createElement("div");
+  bar.className = "save-bar";
+  bar.hidden = true;
+  bar.innerHTML = `<span>יש שינויים שלא נשמרו</span><span class="row-actions"><button type="button" class="btn sm ghost light" data-undo>ביטול</button><button type="button" class="btn green sm" data-save>שמירה ושליחה לטלפונים</button></span>`;
+  $("main").appendChild(bar);
+  const mark = () => { S.dirty = true; bar.hidden = false; };
+  const clear = () => { S.dirty = false; bar.hidden = true; };
+  bar.querySelector("[data-save]").onclick = async (e) => {
+    e.target.disabled = true;
+    try { if (await onSave() !== false) clear(); } catch (err) { fail(err); }
+    e.target.disabled = false;
+  };
+  bar.querySelector("[data-undo]").onclick = () => { clear(); route(); };
+  window.onbeforeunload = () => (S.dirty ? true : undefined);
+  return mark;
+}
+
+// ----- Screen time ------------------------------------------------------------
+// Same three layers as the policy: settings.appGroups (matched by id between layers),
+// settings.appTimeLimits (package → minutes), the daily limit and the sleep hours.
+const MINUTE_PRESETS = [15, 30, 60, 120];
+
+async function renderTime(scopeParam) {
+  main(loadingHtml);
+  const scope = decodeURIComponent(scopeParam || "school");
+  const devSnap = await getDocs(query(collection(db, "devices"), where("instId", "==", S.inst.id)));
+  const devices = devSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.studentName || a.label || "").localeCompare(b.studentName || b.label || "", "he"));
+  const classes = [...new Set(devices.map((d) => (d.className || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "he"));
+  let kind = "school", docId = "policy", title = "כל מוסד הלימודים", target = "", classOfDevice = "";
+  if (scope.startsWith("class:")) { kind = "class"; target = scope.slice(6); docId = classDocId(target); title = "כיתה " + target; }
+  if (scope.startsWith("device:")) {
+    kind = "device"; target = scope.slice(7);
+    const d = devices.find((x) => x.id === target);
+    docId = deviceDocId(d?.policyId || target);
+    classOfDevice = (d?.className || "").trim();
+    title = d ? (d.studentName || d.label) + (d.className ? " · " + d.className : "") : "תלמיד";
+  }
+  const ref = (id) => doc(db, "institutions", S.inst.id, "public", id);
+  const [own, school, cls] = await Promise.all([
+    getDoc(ref(docId)),
+    kind === "school" ? null : getDoc(ref("policy")),
+    classOfDevice ? getDoc(ref(classDocId(classOfDevice))) : null,
+  ]);
+  const data = own.exists() ? own.data() : {};
+  const s = data.settings || {};
+  const upper = { ...DEFAULT_SETTINGS, ...(school?.data()?.settings || {}), ...(cls?.data()?.settings || {}) };
+  const inheritedGroups = kind === "school" ? [] : [
+    ...((school?.data()?.settings || {}).appGroups || []).map((g) => ({ ...g, from: "כל מוסד הלימודים" })),
+    ...((cls?.data()?.settings || {}).appGroups || []).map((g) => ({ ...g, from: "הכיתה" })),
+  ];
+  const inheritedApps = kind === "school" ? {} : { ...(school?.data()?.settings || {}).appTimeLimits, ...(cls?.data()?.settings || {}).appTimeLimits };
+  await appIndex();
+  const catalog = await storeCatalog().catch(() => ({ categories: [], apps: [] }));
+  const ro = !can("editPolicy");
+  const go2 = (x) => go(`inst/${S.inst.id}/time/${encodeURIComponent(x)}`);
+
+  const groups = (s.appGroups || []).map((g) => ({ ...g }));
+  const appLimits = Object.entries(s.appTimeLimits || {}).map(([p, m]) => ({ p, m }));
+  const hasOwnDaily = s.dailyDeviceLimitEnabled !== undefined;
+  const hasOwnSleep = s.downtimeEnabled !== undefined;
+  const eff = { ...upper, ...s };
+
+  main(head("זמני מסך", `${esc(title)}${kind === "school" ? "" : " · נוסף על מה שנקבע למעלה"}`, ro ? '<span class="pill warn">צפייה בלבד</span>' : "") +
+    scopeBarHtml(kind, target, classes, devices) + `
+    <div class="stack">
+      <div class="callout" style="margin:0">${ic("info")}<div>לכל קבוצה או אפליקציה יש זמן משלה ליום. כשהוא נגמר, הן נחסמות עד מחר. מה שיש לו זמן משלו <b>לא נספר</b> במגבלה היומית של כל הטלפון, ואפליקציות חיוניות לא נחסמות לעולם.</div></div>
+
+      <div class="panel"><div class="panel-head"><div><h2>קבוצות אפליקציות</h2><small class="muted">זמן אחד משותף לכל האפליקציות בקבוצה</small></div>
+        ${ro ? "" : `<button type="button" class="btn sm" id="tAddGroup">${ic("plus")}קבוצה חדשה</button>`}</div>
+        <div class="panel-body stack" id="tGroups"></div></div>
+
+      <div class="panel"><div class="panel-head"><div><h2>אפליקציה עם זמן משלה</h2><small class="muted">למשל WhatsApp, חצי שעה ביום</small></div></div>
+        <div class="panel-body stack" style="gap:10px"><div id="tApps"></div>${ro ? "" : '<div id="tAddApp"></div>'}</div></div>
+
+      <div class="grid-2">
+        <div class="panel"><div class="panel-head"><h2>מגבלה יומית לכל הטלפון</h2></div><div class="panel-body stack" style="gap:10px">
+          ${kind === "school" ? "" : `<label class="check"><input type="checkbox" id="tOwnDaily" ${hasOwnDaily ? "checked" : ""}><span><b>הגדרה מיוחדת ל${esc(title)}</b><small>בלי זה: ${upper.dailyDeviceLimitEnabled ? fmtMinutes(upper.dailyDeviceLimitMinutes) + " ביום" : "אין מגבלה"}</small></span></label>`}
+          <div id="tDailyBox" class="stack" style="gap:10px">
+            <label class="check"><input type="checkbox" id="tDailyOn" ${eff.dailyDeviceLimitEnabled ? "checked" : ""}><span><b>הגבלת שימוש יומי</b><small>אחרי המכסה הטלפון ננעל, חוץ מאפליקציות חיוניות</small></span></label>
+            <div class="mins" id="tDailyMins"></div>
+            ${kind === "school" ? `<label class="check"><input type="checkbox" id="tEssCount" ${s.essentialCountsTowardTime ? "checked" : ""}><span><b>אפליקציות חיוניות נספרות בזמן</b><small>הן לא נחסמות, אבל הזמן בהן יורד מהמכסה</small></span></label>` : ""}
+          </div></div></div>
+        <div class="panel"><div class="panel-head"><h2>שעות שינה</h2></div><div class="panel-body stack" style="gap:10px">
+          ${kind === "school" ? "" : `<label class="check"><input type="checkbox" id="tOwnSleep" ${hasOwnSleep ? "checked" : ""}><span><b>הגדרה מיוחדת ל${esc(title)}</b><small>בלי זה: ${upper.downtimeEnabled ? `${minutesToTime(upper.downtimeStartMinutes)} עד ${minutesToTime(upper.downtimeEndMinutes)}` : "אין שעות שינה"}</small></span></label>`}
+          <div id="tSleepBox" class="stack" style="gap:10px">
+            <label class="check"><input type="checkbox" id="tSleepOn" ${eff.downtimeEnabled ? "checked" : ""}><span><b>נעילה בשעות קבועות</b><small>רק האפליקציות החיוניות זמינות</small></span></label>
+            <div class="form-grid"><div class="field"><label>מ-</label><input class="input" type="time" id="tFrom" value="${minutesToTime(eff.downtimeStartMinutes)}"></div>
+              <div class="field"><label>עד</label><input class="input" type="time" id="tTo" value="${minutesToTime(eff.downtimeEndMinutes)}"></div></div>
+          </div></div></div>
+      </div>
+    </div>`);
+
+  bindScopeBar(go2);
+  let mark = () => {};
+  const minutesControl = (container, value, onSet, { allowZero = false } = {}) => {
+    const draw = (v) => {
+      container.innerHTML = `${MINUTE_PRESETS.map((m) => `<button type="button" class="${v === m ? "on" : ""}" data-m="${m}" ${ro ? "disabled" : ""}>${fmtMinutes(m)}</button>`).join("")}
+        <span class="own"><input class="input" type="number" min="${allowZero ? 0 : 1}" max="1440" value="${v}" ${ro ? "disabled" : ""}> דק'</span>`;
+    };
+    draw(value);
+    container.onclick = (e) => { const b = e.target.closest("[data-m]"); if (b) { const v = +b.dataset.m; draw(v); onSet(v); mark(); } };
+    container.onchange = (e) => {
+      if (e.target.tagName !== "INPUT") return;
+      const v = Math.max(allowZero ? 0 : 1, Math.min(1440, parseInt(e.target.value, 10) || 0));
+      draw(v); onSet(v); mark();
+    };
+  };
+
+  const drawGroups = () => {
+    const box = $("tGroups");
+    const inheritedHtml = inheritedGroups.filter((g) => !groups.some((o) => o.id === g.id)).map((g) => `
+      <div class="group-card inh"><div class="g-top"><b>${esc(g.name)}</b><span class="pill">${fmtMinutes(g.minutes)} ביום</span><span class="muted small" style="flex:1">מ${esc(g.from)}</span>
+        ${ro ? "" : `<button type="button" class="btn sm ghost" data-over="${esc(g.id)}">שינוי ל${esc(title)}</button>`}</div>
+        <div class="chips">${(g.packages || []).map((p) => `<span class="chip app">${appIconHtml(p, 22)}${esc(pkgName(p))}</span>`).join("")}</div></div>`).join("");
+    box.innerHTML = inheritedHtml + groups.map((g, i) => `
+      <div class="group-card"><div class="g-top"><input class="input g-name" data-name="${i}" placeholder="שם הקבוצה, למשל משחקים" value="${esc(g.name)}" ${ro ? "disabled" : ""}>
+        ${ro ? "" : `<button type="button" class="icon-btn" data-rm="${i}" title="מחיקת הקבוצה">${ic("trash")}</button>`}</div>
+        <div class="mins" id="gMins${i}"></div>
+        <div id="gApps${i}"></div>
+        ${ro || !catalog.categories.length ? "" : `<select class="input g-cat" data-cat="${i}"><option value="">הוספת כל האפליקציות מקטגוריה בחנות…</option>
+          ${catalog.categories.map((c) => `<option value="${c.id}">${c.emoji || ""} ${esc(c.title)}</option>`).join("")}</select>`}
+      </div>`).join("");
+    if (!inheritedHtml && !groups.length) box.innerHTML = emptyHtml("grid", "עדיין אין קבוצות", "למשל: \"משחקים\", 30 דקות ביום לכל המשחקים יחד");
+    groups.forEach((g, i) => {
+      minutesControl($("gMins" + i), g.minutes, (v) => { g.minutes = v; }, { allowZero: kind !== "school" });
+      g._get = appPicker($("gApps" + i), g._get ? g._get() : g.packages || [], ro, () => mark());
+    });
+  };
+  $("tGroups").addEventListener("click", (e) => {
+    const rm = e.target.closest("[data-rm]");
+    if (rm) { groups.splice(+rm.dataset.rm, 1); drawGroups(); mark(); }
+    const over = e.target.closest("[data-over]");
+    if (over) { const g = inheritedGroups.find((x) => x.id === over.dataset.over); groups.push({ id: g.id, name: g.name, minutes: g.minutes, packages: [...(g.packages || [])] }); drawGroups(); mark(); }
+  });
+  $("tGroups").addEventListener("input", (e) => { const i = e.target.dataset.name; if (i !== undefined) { groups[+i].name = e.target.value; mark(); } });
+  $("tGroups").addEventListener("change", (e) => {
+    const i = e.target.dataset.cat;
+    if (i === undefined || !e.target.value) return;
+    groups[+i]._get.add(catalog.apps.filter((a) => a.c === e.target.value).map((a) => a.p));
+    e.target.value = "";
+  });
+  const add = $("tAddGroup");
+  if (add) add.onclick = () => { groups.push({ id: "g" + randomToken(4), name: "", minutes: 30, packages: [] }); drawGroups(); mark(); document.querySelector(`[data-name="${groups.length - 1}"]`)?.focus(); };
+
+  const drawApps = () => {
+    const inh = Object.entries(inheritedApps).filter(([p]) => !appLimits.some((a) => a.p === p));
+    $("tApps").innerHTML = inh.map(([p, m]) => `<div class="limit-row inh">${appIconHtml(p, 34)}<b>${esc(pkgName(p))}</b><span class="pill">${fmtMinutes(m)} ביום</span>
+        ${ro ? "" : `<button type="button" class="btn sm ghost" data-overapp="${esc(p)}">שינוי</button>`}</div>`).join("") +
+      appLimits.map((a, i) => `<div class="limit-row">${appIconHtml(a.p, 34)}<b title="${esc(a.p)}">${esc(pkgName(a.p))}</b>
+        <div class="mins" id="aMins${i}"></div>${ro ? "" : `<button type="button" class="icon-btn" data-rmapp="${i}" title="הסרה">${ic("trash")}</button>`}</div>`).join("") ||
+      '<span class="muted small">עדיין אין. הוסיפו אפליקציה למטה.</span>';
+    appLimits.forEach((a, i) => minutesControl($("aMins" + i), a.m, (v) => { a.m = v; }, { allowZero: kind !== "school" }));
+  };
+  $("tApps").addEventListener("click", (e) => {
+    const rm = e.target.closest("[data-rmapp]");
+    if (rm) { appLimits.splice(+rm.dataset.rmapp, 1); drawApps(); mark(); }
+    const over = e.target.closest("[data-overapp]");
+    if (over) { appLimits.push({ p: over.dataset.overapp, m: inheritedApps[over.dataset.overapp] }); drawApps(); mark(); }
+  });
+  if (!ro) {
+    // The picker here only feeds the rows above: pick an app, and it becomes a row of its own.
+    const adder = appPicker($("tAddApp"), [], false, () => {
+      const list = adder();
+      while (list.length) { const p = list.pop(); if (!appLimits.some((a) => a.p === p)) appLimits.push({ p, m: 30 }); }
+      $("tAddApp").querySelector(".chips").innerHTML = "";
+      drawApps(); mark();
+    });
+    $("tAddApp").querySelector(".chips").innerHTML = "";
+  }
+
+  let dailyMinutes = eff.dailyDeviceLimitMinutes;
+  minutesControl($("tDailyMins"), dailyMinutes, (v) => { dailyMinutes = v; });
+  const syncOwn = () => {
+    const d = $("tOwnDaily"), n = $("tOwnSleep");
+    $("tDailyBox").hidden = d ? !d.checked : false;
+    $("tSleepBox").hidden = n ? !n.checked : false;
+    $("tDailyMins").hidden = !$("tDailyOn").checked;
+    $("tSleepBox").querySelector(".form-grid").hidden = !$("tSleepOn").checked;
+  };
+  syncOwn();
+  document.querySelectorAll("#tOwnDaily,#tOwnSleep,#tDailyOn,#tSleepOn,#tEssCount,#tFrom,#tTo").forEach((x) => x.addEventListener("change", () => { syncOwn(); mark(); }));
+  drawGroups();
+  drawApps();
+  if (ro) { document.querySelectorAll("#main input,#main select").forEach((x) => { if (!x.closest(".scope-bar")) x.disabled = true; }); return; }
+
+  mark = saveBar(async () => {
+    const outGroups = groups.map((g) => ({ id: g.id, name: g.name.trim(), minutes: g.minutes, packages: g._get() }));
+    const bad = outGroups.find((g) => !g.name || (!g.packages.length && g.minutes > 0));
+    if (bad) { toast(bad.name ? `בקבוצה "${bad.name}" אין עדיין אפליקציות` : "תנו שם לכל קבוצה", true); return false; }
+    const settings = { ...s, appGroups: outGroups, appTimeLimits: Object.fromEntries(appLimits.map((a) => [a.p, a.m])) };
+    const own = (box, keys, values) => { if (box && !box.checked) keys.forEach((k) => delete settings[k]); else Object.assign(settings, values); };
+    own($("tOwnDaily"), ["dailyDeviceLimitEnabled", "dailyDeviceLimitMinutes"], { dailyDeviceLimitEnabled: $("tDailyOn").checked, dailyDeviceLimitMinutes: dailyMinutes });
+    own($("tOwnSleep"), ["downtimeEnabled", "downtimeStartMinutes", "downtimeEndMinutes"], { downtimeEnabled: $("tSleepOn").checked, downtimeStartMinutes: timeToMinutes($("tFrom").value), downtimeEndMinutes: timeToMinutes($("tTo").value) });
+    if ($("tEssCount")) settings.essentialCountsTowardTime = $("tEssCount").checked;
+    const fields = kind === "school" ? { settings, version: (data.version || 0) + 1 } : { scope: kind, target, settings };
+    await setDoc(ref(docId), { ...fields, updatedAt: serverTimestamp(), updatedBy: S.email }, { mergeFields: [...Object.keys(fields), "updatedAt", "updatedBy"] });
+    toast("נשמר. הטלפונים יתעדכנו תוך שניות");
+    S.dirty = false;
+    renderTime(scopeParam);
+  });
+}
+
+function scopeBarHtml(kind, target, classes, devices) {
+  return `<div class="panel scope-bar" style="margin-bottom:18px"><div class="panel-body" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <span class="muted small" style="font-weight:600">חל על:</span>
+    <button type="button" class="btn sm ${kind === "school" ? "" : "ghost"}" id="scSchool">${ic("building")}כל מוסד הלימודים</button>
+    <select class="input" id="scClass" style="width:auto;min-width:150px;padding:8px 12px"><option value="">כיתה…</option>
+      ${classes.map((c) => `<option ${kind === "class" && target === c ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>
+    <select class="input" id="scDevice" style="width:auto;min-width:170px;padding:8px 12px"><option value="">תלמיד…</option>
+      ${devices.map((d) => `<option value="${esc(d.id)}" ${kind === "device" && target === d.id ? "selected" : ""}>${esc(d.studentName || d.label || d.id)}${d.className ? " · " + esc(d.className) : ""}</option>`).join("")}</select>
+    ${classes.length ? "" : '<span class="muted small">כיתות מופיעות כאן אחרי שמכשירים נרשמים עם שם כיתה</span>'}
+  </div></div>`;
 }
 
 // ----- Keys / policy cache -----------------------------------------------
@@ -1018,7 +1517,8 @@ function normalizeDomains(text) {
 }
 
 /** Chip list editor for apps ("apps") or websites ("sites"); returns a getter for the current list. */
-function chipEditor(container, kind, initial, readOnly) {
+function chipEditor(container, kind, initial, readOnly, onChange = () => {}) {
+  if (kind === "apps") return appPicker(container, initial, readOnly, onChange);
   const list = [...initial];
   const id = "ce" + Math.random().toString(36).slice(2, 8);
   container.innerHTML = `<div class="chips" id="${id}_chips"></div>
@@ -1031,7 +1531,7 @@ function chipEditor(container, kind, initial, readOnly) {
   };
   draw();
   if (!readOnly) {
-    $(id + "_chips").onclick = (e) => { const b = e.target.closest("[data-i]"); if (b) { list.splice(+b.dataset.i, 1); draw(); } };
+    $(id + "_chips").onclick = (e) => { const b = e.target.closest("[data-i]"); if (b) { list.splice(+b.dataset.i, 1); draw(); onChange(); } };
     const add = () => {
       const inp = $(id + "_in");
       const { good, bad } = kind === "apps" ? resolveApps(inp.value, CATALOG) : normalizeDomains(inp.value);
@@ -1039,6 +1539,7 @@ function chipEditor(container, kind, initial, readOnly) {
       inp.value = bad.join(", ");
       if (bad.length) toast("לא זוהו: " + bad.join(", "), true);
       draw();
+      onChange();
     };
     $(id + "_add").onclick = add;
     $(id + "_in").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); add(); } };
@@ -1067,27 +1568,21 @@ async function renderPolicy(scopeParam) {
   const data = snap.exists() ? snap.data() : {};
   const go2 = (s) => go(`inst/${S.inst.id}/policy/${encodeURIComponent(s)}`);
 
-  const scopeBar = `<div class="panel" style="margin-bottom:18px"><div class="panel-body" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-    <span class="muted small" style="font-weight:600">חל על:</span>
-    <button type="button" class="btn sm ${kind === "school" ? "" : "ghost"}" id="scSchool">${ic("building")}כל מוסד הלימודים</button>
-    <select class="input" id="scClass" style="width:auto;min-width:150px;padding:8px 12px"><option value="">כיתה…</option>
-      ${classes.map((c) => `<option ${kind === "class" && target === c ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>
-    <select class="input" id="scDevice" style="width:auto;min-width:170px;padding:8px 12px"><option value="">תלמיד…</option>
-      ${devices.map((d) => `<option value="${esc(d.id)}" ${kind === "device" && target === d.id ? "selected" : ""}>${esc(d.studentName || d.label || d.id)}${d.className ? " · " + esc(d.className) : ""}</option>`).join("")}</select>
-    ${classes.length ? "" : '<span class="muted small">כיתות מופיעות כאן אחרי שמכשירים נרשמים עם שם כיתה</span>'}
-  </div></div>`;
+  const scopeBar = scopeBarHtml(kind, target, classes, devices);
+  let mark = () => {};
+  const changed = () => mark();
 
   const sitesPanel = (titleText, hint) => `<div class="panel"><div class="panel-head"><h2>${titleText}</h2></div><div class="panel-body">
     <p class="muted small" style="margin:0 0 10px">${hint}</p><div id="sitesBox"></div></div></div>`;
   const appsPanel = (titleText) => `<div class="panel"><div class="panel-head"><h2>${titleText}</h2></div><div class="panel-body"><div id="appsBox"></div></div></div>`;
-  const datalist = `<datalist id="pkgList">${Object.keys(APP_NAMES).map((p) => `<option value="${esc(p)}" label="${esc(appLabel(p))}">`).join("")}</datalist>`;
+  const datalist = "";
 
   if (kind !== "school") {
     const s = data.settings || {};
     const adState = s.adBlock === true ? "on" : s.adBlock === false ? "off" : "inherit";
-    main(head("מדיניות סינון", `${esc(title)} · נוסף על המדיניות של כל מוסד הלימודים`,
+    main(head("מה חסום", `${esc(title)} · נוסף על המדיניות של כל מוסד הלימודים`,
       ro ? '<span class="pill warn">צפייה בלבד</span>'
-        : `${snap.exists() ? `<button class="btn ghost" id="btnClearScope">${ic("trash")}ביטול ההגדרות האלה</button>` : ""}<button class="btn" id="btnSavePolicy">שמירה ושליחה</button>`) + scopeBar + `
+        : `${snap.exists() ? `<button class="btn ghost" id="btnClearScope">${ic("trash")}ביטול ההגדרות האלה</button>` : ""}`) + scopeBar + `
       <form id="pol" class="stack">
         <div class="callout">${ic("info")}<div>מה שמוגדר כאן <b>נוסף</b> על החסימות של כל מוסד הלימודים${kind === "device" ? " ושל הכיתה" : ""}. אי אפשר לפתוח כאן משהו שמוסד הלימודים חסם.</div></div>
         <div class="grid-2">
@@ -1100,21 +1595,24 @@ async function renderPolicy(scopeParam) {
         </div></div>
         ${datalist}
       </form>`);
-    const getApps = chipEditor($("appsBox"), "apps", s.customAppPackages || [], ro);
-    const getSites = chipEditor($("sitesBox"), "sites", s.blockedDomains || [], ro);
+    const getApps = chipEditor($("appsBox"), "apps", s.customAppPackages || [], ro, changed);
+    const getSites = chipEditor($("sitesBox"), "sites", s.blockedDomains || [], ro, changed);
     bindScopeBar(go2);
     if (ro) { $("pol").querySelectorAll("input").forEach((x) => (x.disabled = true)); return; }
-    $("btnSavePolicy").onclick = async () => {
+    mark = saveBar(async () => {
       const ad = $("pol").adBlock.value;
-      const settings = { customAppPackages: getApps(), blockedDomains: getSites(), ...(ad === "inherit" ? {} : { adBlock: ad === "on" }) };
-      try {
-        await setDoc(doc(db, "institutions", S.inst.id, "public", docId), {
-          scope: kind, target, settings, updatedAt: serverTimestamp(), updatedBy: S.email,
-        }, { mergeFields: ["scope", "target", "settings", "updatedAt", "updatedBy"] }); // keeps a pending "update" request
-        toast("נשמר. המכשירים יתעדכנו תוך שניות");
-        renderPolicy(scopeParam);
-      } catch (e) { fail(e); }
-    };
+      // Starts from what's there: the screen-time settings of this layer live in the same map.
+      const settings = { ...s, customAppPackages: getApps(), blockedDomains: getSites() };
+      delete settings.adBlock;
+      if (ad !== "inherit") settings.adBlock = ad === "on";
+      await setDoc(doc(db, "institutions", S.inst.id, "public", docId), {
+        scope: kind, target, settings, updatedAt: serverTimestamp(), updatedBy: S.email,
+      }, { mergeFields: ["scope", "target", "settings", "updatedAt", "updatedBy"] }); // keeps a pending "update" request
+      toast("נשמר. המכשירים יתעדכנו תוך שניות");
+      S.dirty = false;
+      renderPolicy(scopeParam);
+    });
+    $("pol").addEventListener("change", changed);
     const clr = $("btnClearScope");
     if (clr) clr.onclick = async () => {
       if (!confirm(`לבטל את כל ההגדרות המיוחדות של ${title}?`)) return;
@@ -1127,21 +1625,23 @@ async function renderPolicy(scopeParam) {
   const policy = snap.exists() ? data : { settings: DEFAULT_SETTINGS, telemetry: DEFAULT_TELEMETRY, version: 0 };
   const s = { ...DEFAULT_SETTINGS, ...policy.settings };
   const tel = { ...DEFAULT_TELEMETRY, ...policy.telemetry };
-  main(head("מדיניות סינון", `כל מוסד הלימודים · גרסה ${policy.version || 0}${policy.updatedBy ? " · עודכנה על ידי " + esc(policy.updatedBy) : ""}`,
-    ro ? '<span class="pill warn">צפייה בלבד</span>' : `<button class="btn" id="btnSavePolicy">שמירה ושליחה למכשירים</button>`) + scopeBar + `
+  main(head("מה חסום", `כל מוסד הלימודים · גרסה ${policy.version || 0}${policy.updatedBy ? " · עודכנה על ידי " + esc(policy.updatedBy) : ""}`,
+    ro ? '<span class="pill warn">צפייה בלבד</span>' : "") + scopeBar + `
+    <div class="sec-nav"><a href="#" data-sec="secProfile">חבילת סינון</a><a href="#" data-sec="secApps">אפליקציות</a><a href="#" data-sec="secSites">אתרים</a><a href="#" data-sec="secStores">חנויות</a><a href="#" data-sec="secMore">עדכונים ודיווח</a>
+      <a href="#/inst/${S.inst.id}/time">${ic("clock", 'style="width:15px;height:15px"')}זמני מסך</a></div>
     <form id="pol" class="stack">
       <label class="check"><input type="checkbox" name="filteringEnabled" ${s.filteringEnabled ? "checked" : ""}><span><b>הסינון פעיל</b><small>כיבוי משבית את כל החסימות בכל המכשירים</small></span></label>
-      <div class="panel"><div class="panel-head"><h2>פרופיל חסימה</h2></div><div class="panel-body grid-2" style="gap:10px">
+      <div class="panel" id="secProfile"><div class="panel-head"><h2>חבילת סינון</h2></div><div class="panel-body grid-2" style="gap:10px">
         ${CATALOG.profiles.map((p) => `<label class="check"><input type="radio" name="profileId" value="${p.id}" ${s.profileId === p.id ? "checked" : ""}><span><b>${esc(p.title)}</b><small>${esc(p.subtitle)}</small></span></label>`).join("")}
       </div>
       <div class="panel-body" id="customCats" style="padding-top:0"><div class="field"><label>קטגוריות לחסימה</label><div class="grid-3" style="gap:8px">
         ${CATALOG.categories.map((c) => `<label class="check"><input type="checkbox" name="cat" value="${c.id}" ${s.customCategoryIds.includes(c.id) ? "checked" : ""}><span><b>${esc(c.title)}</b></span></label>`).join("")}
       </div></div></div></div>
-      <div class="grid-2">
+      <div class="grid-2" id="secApps">
         ${appsPanel("אפליקציות חסומות נוספות")}
         <div class="panel"><div class="panel-head"><h2>אפליקציות חיוניות (תמיד מותרות)</h2></div><div class="panel-body"><div id="essBox"></div></div></div>
       </div>
-      ${sitesPanel("אתרים חסומים", "כתובת אתר, למשל youtube.com. נחסמים גם כל תתי-האתרים שלו, בכל הדפדפנים והאפליקציות.")}
+      <div id="secSites">${sitesPanel("אתרים חסומים", "כתובת אתר, למשל youtube.com. נחסמים גם כל תתי-האתרים שלו, בכל הדפדפנים והאפליקציות.")}</div>
       <div class="panel"><div class="panel-head"><h2>סינון אינטרנט</h2></div><div class="panel-body stack" style="gap:10px">
         <label class="check"><input type="checkbox" name="adBlock" ${s.adBlock ? "checked" : ""}><span><b>חוסם פרסומות</b><small>חוסם פרסומות ואתרים לא ראויים בכל המכשירים. אפשר להפעיל או לכבות גם לכיתה או לתלמיד מסוים.</small></span></label>
         <details class="faq" style="margin:0"><summary>שרת DNS מותאם (מתקדם)</summary>
@@ -1149,22 +1649,12 @@ async function renderPolicy(scopeParam) {
           <input class="input ltr" name="dnsServer" placeholder="https://dns.example.com/dns-query" value="${esc(s.dnsServer || "")}" style="margin-bottom:16px">
         </details>
       </div></div>
-      <div class="panel"><div class="panel-head"><h2>חנויות אפליקציות</h2><a class="btn sm ghost" href="#/inst/${S.inst.id}/store">${ic("store")}ניהול החנות הכשרה</a></div><div class="panel-body grid-3" style="gap:10px">
+      <div class="panel" id="secStores"><div class="panel-head"><h2>חנויות אפליקציות</h2><a class="btn sm ghost" href="#/inst/${S.inst.id}/store">${ic("store")}ניהול החנות הכשרה</a></div><div class="panel-body grid-3" style="gap:10px">
         <label class="check"><input type="radio" name="playStore" value="open" ${s.playStore !== "blocked" ? "checked" : ""}><span><b>Google Play פתוחה</b><small>אפשר להתקין כל אפליקציה (אפליקציות חסומות עדיין ייחסמו)</small></span></label>
         <label class="check"><input type="radio" name="playStore" value="blocked" ${s.playStore === "blocked" ? "checked" : ""}><span><b>Google Play חסומה</b><small>מתקינים רק מהחנות הכשרה</small></span></label>
         <label class="check"><input type="checkbox" name="kosherStore" ${s.kosherStore !== false ? "checked" : ""}><span><b>החנות הכשרה פעילה</b><small>אייקון "החנות הכשרה" בטלפונים, עם האפליקציות שאישרתם</small></span></label>
       </div></div>
-      <div class="grid-2">
-        <div class="panel"><div class="panel-head"><h2>שעות שינה</h2></div><div class="panel-body stack" style="gap:10px">
-          <label class="check"><input type="checkbox" name="downtimeEnabled" ${s.downtimeEnabled ? "checked" : ""}><span><b>חסימה בשעות קבועות</b><small>רק האפליקציות החיוניות זמינות</small></span></label>
-          <div class="form-grid"><div class="field"><label>מ-</label><input class="input" type="time" name="downtimeStart" value="${minutesToTime(s.downtimeStartMinutes)}"></div>
-          <div class="field"><label>עד</label><input class="input" type="time" name="downtimeEnd" value="${minutesToTime(s.downtimeEndMinutes)}"></div></div></div></div>
-        <div class="panel"><div class="panel-head"><h2>מגבלת זמן יומית</h2></div><div class="panel-body stack" style="gap:10px">
-          <label class="check"><input type="checkbox" name="dailyDeviceLimitEnabled" ${s.dailyDeviceLimitEnabled ? "checked" : ""}><span><b>הגבלת שימוש יומי</b><small>אחרי המכסה רק אפליקציות חיוניות</small></span></label>
-          <div class="field"><label>דקות ביום</label><input class="input" type="number" min="5" max="1440" name="dailyMinutes" value="${s.dailyDeviceLimitMinutes}"></div>
-          <label class="check"><input type="checkbox" name="essentialCountsTowardTime" ${s.essentialCountsTowardTime ? "checked" : ""}><span><b>אפליקציות חיוניות נספרות בזמן</b><small>הן לא נחסמות לעולם, אבל הזמן בהן יורד מהמכסה היומית</small></span></label></div></div>
-      </div>
-      <div class="panel"><div class="panel-head"><h2>עדכוני אפליקציה</h2></div><div class="panel-body">
+      <div class="panel" id="secMore"><div class="panel-head"><h2>עדכוני אפליקציה</h2></div><div class="panel-body">
         <label class="check"><input type="checkbox" name="autoUpdate" ${s.autoUpdate ? "checked" : ""}><span><b>עדכון אוטומטי</b><small>כשיוצאת גרסה חדשה, כל הטלפונים מתבקשים מיד להתעדכן, בלי ללחוץ על "עדכון אפליקציה"</small></span></label>
       </div></div>
       <div class="panel"><div class="panel-head"><h2>דיווח למערכת</h2></div><div class="panel-body grid-3" style="gap:10px">
@@ -1178,14 +1668,20 @@ async function renderPolicy(scopeParam) {
   const f = $("pol");
   const syncCats = () => { $("customCats").hidden = f.profileId.value !== "custom"; };
   f.addEventListener("change", syncCats); syncCats();
-  const getApps = chipEditor($("appsBox"), "apps", s.customAppPackages || [], ro);
-  const getEssential = chipEditor($("essBox"), "apps", s.essentialAppPackages || [], ro);
-  const getSites = chipEditor($("sitesBox"), "sites", s.blockedDomains || [], ro);
+  const getApps = chipEditor($("appsBox"), "apps", s.customAppPackages || [], ro, changed);
+  const getEssential = chipEditor($("essBox"), "apps", s.essentialAppPackages || [], ro, changed);
+  const getSites = chipEditor($("sitesBox"), "sites", s.blockedDomains || [], ro, changed);
+  document.querySelector(".sec-nav").addEventListener("click", (e) => {
+    const a = e.target.closest("[data-sec]");
+    if (a) { e.preventDefault(); $(a.dataset.sec).scrollIntoView({ behavior: "smooth", block: "start" }); }
+  });
   bindScopeBar(go2);
   if (ro) { f.querySelectorAll("input,select").forEach((x) => (x.disabled = true)); return; }
-  $("btnSavePolicy").onclick = async () => {
+  f.addEventListener("input", changed);
+  f.addEventListener("change", changed);
+  mark = saveBar(async () => {
     const dns = f.dnsServer.value.trim();
-    if (dns && !/^https:\/\/[^\s/]+\.[^\s/]+\/\S*$/.test(dns)) return toast("כתובת שרת ה-DNS צריכה להתחיל ב-https:// ולכלול נתיב", true);
+    if (dns && !/^https:\/\/[^\s/]+\.[^\s/]+\/\S*$/.test(dns)) { toast("כתובת שרת ה-DNS צריכה להתחיל ב-https:// ולכלול נתיב", true); return false; }
     const settings = {
       ...policy.settings,
       filteringEnabled: f.filteringEnabled.checked,
@@ -1197,25 +1693,18 @@ async function renderPolicy(scopeParam) {
       adBlock: f.adBlock.checked,
       dnsServer: dns,
       vpnEnabled: true,
-      downtimeEnabled: f.downtimeEnabled.checked,
-      downtimeStartMinutes: timeToMinutes(f.downtimeStart.value),
-      downtimeEndMinutes: timeToMinutes(f.downtimeEnd.value),
-      dailyDeviceLimitEnabled: f.dailyDeviceLimitEnabled.checked,
-      dailyDeviceLimitMinutes: Math.max(5, parseInt(f.dailyMinutes.value, 10) || 120),
-      essentialCountsTowardTime: f.essentialCountsTowardTime.checked,
       autoUpdate: f.autoUpdate.checked,
       playStore: f.playStore.value,
       kosherStore: f.kosherStore.checked,
     };
     const telemetry = { reportDomains: f.reportDomains.checked, reportApps: f.reportApps.checked, intervalMinutes: parseInt(f.intervalMinutes.value, 10) };
-    try {
-      await setDoc(doc(db, "institutions", S.inst.id, "public", "policy"), {
-        settings, telemetry, version: (policy.version || 0) + 1, updatedAt: serverTimestamp(), updatedBy: S.email,
-      }, { mergeFields: ["settings", "telemetry", "version", "updatedAt", "updatedBy"] }); // keeps a pending "update" request
-      toast("המדיניות נשמרה. מכשירים מחוברים יתעדכנו תוך שניות");
-      renderPolicy(scopeParam);
-    } catch (e) { fail(e); }
-  };
+    await setDoc(doc(db, "institutions", S.inst.id, "public", "policy"), {
+      settings, telemetry, version: (policy.version || 0) + 1, updatedAt: serverTimestamp(), updatedBy: S.email,
+    }, { mergeFields: ["settings", "telemetry", "version", "updatedAt", "updatedBy"] }); // keeps a pending "update" request
+    toast("נשמר. מכשירים מחוברים יתעדכנו תוך שניות");
+    S.dirty = false;
+    renderPolicy(scopeParam);
+  });
 }
 
 function bindScopeBar(go2) {

@@ -149,6 +149,86 @@
   .stack { display: grid; gap: 16px; }
   .row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
+  /* Search everywhere */
+  .pal-btn { margin-inline-start: 18px; flex: 0 1 340px; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; border: 1px solid #ffffff2e; background: #ffffff14; color: #c7d2e8; font: inherit; font-size: 14px; cursor: pointer; }
+  .pal-btn:hover { background: #ffffff24; }
+  .pal-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .pal-btn kbd { margin-inline-start: auto; font: inherit; font-size: 12px; opacity: .7; }
+  @media (max-width: 760px) { .pal-btn { flex: 0 0 auto; font-size: 0; gap: 0; margin-inline-start: 8px; } .pal-btn kbd { display: none; } }
+  dialog.palette { border: 0; border-radius: var(--r-lg); padding: 12px; width: min(560px, calc(100% - 24px)); margin-top: 12vh; background: var(--surface); color: var(--text); box-shadow: var(--shadow-lg); }
+  dialog.palette::backdrop { background: #0b1120a0; }
+  #palOut { display: grid; gap: 2px; margin-top: 8px; max-height: 50vh; overflow-y: auto; }
+  #palOut button { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 0; background: none; border-radius: 10px; font: inherit; color: inherit; cursor: pointer; text-align: start; }
+  #palOut button:hover, #palOut button.on { background: var(--brand-soft); }
+  #palOut svg { width: 18px; height: 18px; color: var(--muted); flex-shrink: 0; }
+  #palOut small { margin-inline-start: auto; color: var(--muted); }
+
+  @media (max-width: 640px) { .grid-4 { grid-template-columns: 1fr 1fr; gap: 10px; } .stat { padding: 14px; } .page-head h1 { font-size: 24px; } .save-bar { flex-wrap: wrap; } .topbar .brand { font-size: 15px; white-space: nowrap; } }
+
+  /* Overview */
+  .home-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 1000px) { .home-grid { grid-template-columns: 1fr; } }
+  .stat.link { color: inherit; text-decoration: none; display: block; transition: transform .12s, box-shadow .12s; }
+  .stat.link:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+  .quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .quick a, .quick button { display: grid; justify-items: center; gap: 8px; padding: 16px 6px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); color: var(--text); text-decoration: none; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; text-align: center; }
+  .quick a:hover, .quick button:hover { background: var(--brand-soft); border-color: transparent; color: var(--brand); }
+  .quick svg { width: 24px; height: 24px; color: var(--brand); }
+  .ubar { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; margin-bottom: 12px; font-size: 14px; }
+  .ubar .n { display: flex; gap: 8px; align-items: center; font-weight: 600; min-width: 0; }
+  .ubar .m { color: var(--muted); }
+  .ubar .bar { grid-column: 1 / -1; height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+  .ubar .bar i { display: block; height: 100%; background: var(--brand); border-radius: 3px; }
+
+  /* Devices list */
+  .class-chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 12px 20px 0; }
+  .class-chips:empty { display: none; }
+  .class-chips button { display: inline-flex; gap: 6px; align-items: center; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font: inherit; font-size: 14px; font-weight: 600; color: var(--text); cursor: pointer; }
+  .class-chips button small { color: var(--muted); font-weight: 500; }
+  .class-chips button.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .class-chips button.on small { color: #ffffffc0; }
+  .row { grid-template-columns: auto minmax(90px, 1fr) minmax(0, auto); }
+  .row.sel { grid-template-columns: auto auto minmax(90px, 1fr) minmax(0, auto); }
+  .row .r .pill { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
+  .row .r .pill svg { vertical-align: -2px; margin-inline-end: 4px; }
+  @media (max-width: 640px) { .row, .row.sel { row-gap: 6px; } .row .r { grid-column: 1 / -1; justify-content: flex-start; } }
+  .row .pick { width: 18px; height: 18px; accent-color: var(--brand); cursor: pointer; }
+  .btn.light.ghost { background: #ffffff1f; color: #fff; border-color: #ffffff30; }
+  .btn.light.ghost svg { color: #fff; }
+
+  /* App picker */
+  .aic { flex-shrink: 0; object-fit: cover; display: inline-grid; place-items: center; }
+  .aic.ph { background: var(--brand-soft); color: var(--brand); font-weight: 800; }
+  .chip.app { padding: 3px 6px 3px 10px; }
+  .picker { position: relative; margin-top: 10px; }
+  .picker-menu { position: absolute; z-index: 40; inset-inline: 0; top: calc(100% + 4px); background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-lg); max-height: 320px; overflow-y: auto; padding: 4px; }
+  .picker-menu button { display: flex; width: 100%; gap: 10px; align-items: center; padding: 8px; border: 0; background: none; border-radius: 8px; font: inherit; color: inherit; cursor: pointer; text-align: start; }
+  .picker-menu button:hover { background: var(--brand-soft); }
+  .picker-menu b { font-size: 14px; }
+  .picker-menu small { margin-inline-start: auto; color: var(--muted); font-size: 11.5px; direction: ltr; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 45%; }
+
+  /* Screen time */
+  .group-card { border: 1px solid var(--border); border-radius: 16px; padding: 14px; display: grid; gap: 12px; background: var(--surface); }
+  .group-card.inh { background: var(--surface-2); }
+  .g-top { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .g-name { flex: 1; min-width: 180px; font-weight: 700; }
+  .g-cat { max-width: 340px; font-size: 14px; padding: 8px 12px; }
+  .mins { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .mins button { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font: inherit; font-size: 14px; color: var(--text); cursor: pointer; }
+  .mins button.on { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 700; }
+  .mins .own { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; color: var(--muted); }
+  .mins .own .input { width: 76px; padding: 6px 8px; text-align: center; }
+  .limit-row { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .limit-row:last-child { border-bottom: 0; }
+  .limit-row > b { flex: 1; min-width: 120px; }
+  .limit-row.inh { opacity: .8; }
+
+  /* Policy: jump between sections */
+  .sec-nav { position: sticky; top: 64px; z-index: 25; display: flex; gap: 6px; flex-wrap: wrap; background: var(--bg); padding: 8px 0 12px; margin-bottom: 4px; }
+  .sec-nav a { display: inline-flex; gap: 5px; align-items: center; padding: 6px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); color: var(--text); text-decoration: none; font-size: 14px; font-weight: 600; }
+  .sec-nav a:hover { background: var(--brand-soft); color: var(--brand); }
+  #secProfile, #secApps, #secSites, #secStores, #secMore { scroll-margin-top: 130px; }
+
   dialog.modal { border: 0; border-radius: var(--r-lg); padding: 0; width: min(620px, calc(100% - 24px)); background: var(--surface); color: var(--text); box-shadow: var(--shadow-lg); }
   dialog.modal::backdrop { background: #0b1120a0; }
   dialog.modal .m-head { padding: 18px 22px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
@@ -168,6 +248,7 @@
       <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></span>
       מסנן כשר · ניהול
     </a>
+    <button class="pal-btn" id="btnPalette" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>חיפוש תלמיד, כיתה או מסך<kbd>Ctrl K</kbd></button>
     <div class="who" id="who" hidden>
       <span class="email" id="whoEmail"></span>
       <span class="avatar" id="whoAvatar"></span>
@@ -233,6 +314,7 @@
 <div class="drawer-bg" id="drawerBg"></div>
 <aside class="drawer" id="drawer" aria-hidden="true"></aside>
 <dialog class="modal" id="modal"></dialog>
+<dialog class="palette" id="palette"></dialog>
 <div class="toast" id="toast"></div>
 
 <script type="module" src="portal.js"></script>
