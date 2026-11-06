@@ -44,7 +44,7 @@
   .side .sep { height: 1px; background: var(--border); margin: 8px 4px; }
   .main { padding: 28px 32px 60px; min-width: 0; }
   @media (max-width: 900px) {
-    .shell { grid-template-columns: 1fr; }
+    .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; } /* else a short page stretches the tab bar */
     .side { flex-direction: row; overflow-x: auto; border-inline-end: 0; border-bottom: 1px solid var(--border); padding: 8px; gap: 4px; position: sticky; top: 64px; z-index: 20; }
     .side .ctx, .side .sep { display: none; }
     .side a { white-space: nowrap; padding: 8px 12px; }
