@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>רישום לסינון · מסנן כשר</title>
+<meta name="description" content="התקנת מסנן כשר ורישום הטלפון למוסד הלימודים.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+<link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+<style>
+  .join-hero { background: linear-gradient(180deg, var(--hero), var(--hero-2)); color: #fff; padding: 44px 0 90px; text-align: center; }
+  .join-hero .seal { width: 64px; height: 64px; margin: 0 auto 16px; border-radius: 18px; display: grid; place-items: center; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18); }
+  .join-hero .seal svg { width: 34px; height: 34px; }
+  .join-hero h1 { font-size: clamp(26px, 6vw, 40px); margin: 0 0 8px; font-weight: 800; }
+  .join-hero p { color: #c3cee6; font-size: 17px; margin: 0 auto; max-width: 520px; }
+  .join { max-width: 560px; margin: -64px auto 64px; padding: 0 16px; display: grid; gap: 16px; position: relative; }
+  .join .card { padding: 22px; }
+  .join h2 { font-size: 19px; margin: 0 0 4px; }
+  .join .muted { color: var(--muted); margin: 0; font-size: 15px; }
+  .join .actions { display: grid; gap: 10px; margin-top: 16px; }
+  .join .actions .btn { justify-content: center; width: 100%; }
+  .join .or { text-align: center; color: var(--muted); font-size: 14px; margin: 2px 0; }
+  .num { flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); font-weight: 800; font-size: 14px; }
+  .row { display: flex; gap: 12px; align-items: flex-start; }
+  .row + .row { margin-top: 14px; }
+  .row b { display: block; margin-bottom: 2px; }
+  .linkbox { display: flex; gap: 8px; margin-top: 12px; }
+  .linkbox input { flex: 1; min-width: 0; direction: ltr; text-align: left; font-size: 13px; }
+  #qr { display: grid; place-items: center; margin-top: 14px; }
+  #qr svg { width: 220px; height: 220px; background: #fff; border-radius: 12px; padding: 8px; }
+  .note { display: none; }
+  .noapp .note { display: flex; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="../"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></span>מסנן כשר</a>
+  </div>
+</header>
+
+<div class="join-hero">
+  <div class="wrap">
+    <div class="seal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
+    <h1>רישום הטלפון לסינון</h1>
+    <p>מוסד הלימודים הזמין אתכם להתקין את מסנן כשר. זה לוקח כמה דקות.</p>
+  </div>
+</div>
+
+<main class="join" id="join">
+
+  <div class="card" id="bad" hidden>
+    <h2>הקישור לא שלם</h2>
+    <p class="muted">חסר בו חלק. בקשו ממוסד הלימודים לשלוח את קישור הרישום שוב, או סרקו את הברקוד.</p>
+  </div>
+
+  <div class="card" id="android" hidden>
+    <div class="callout note" style="margin-bottom:14px"><div>האפליקציה עדיין לא מותקנת בטלפון הזה. מתקינים אותה ואז חוזרים לכאן.</div></div>
+
+    <div class="row"><span class="num">1</span><div>
+      <b>מורידים ומתקינים את האפליקציה</b>
+      <p class="muted">פותחים את הקובץ שירד ומאשרים התקנה. אם אנדרואיד מבקש, מאשרים "התקנה ממקור זה". אם Play Protect מזהיר: "פרטים נוספים" ← "להתקין בכל זאת".</p>
+    </div></div>
+    <div class="actions">
+      <a class="btn lg green" id="dl" href="../downloads/KosherGuard.apk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>הורדת האפליקציה</a>
+    </div>
+
+    <div class="row" style="margin-top:22px"><span class="num">2</span><div>
+      <b>ממשיכים לרישום באפליקציה</b>
+      <p class="muted">אחרי ההתקנה לוחצים כאן. האפליקציה נפתחת ומבקשת רק שם וכיתה.</p>
+    </div></div>
+    <div class="actions">
+      <a class="btn lg" id="open" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>פתיחה באפליקציה</a>
+      <p class="or">או: פותחים את מסנן כשר ולוחצים "הדבקת קישור". הקישור כבר הועתק כשלחצתם על ההורדה.</p>
+    </div>
+  </div>
+
+  <div class="card" id="other" hidden>
+    <h2>פותחים את הדף הזה בטלפון של התלמיד</h2>
+    <p class="muted">מסנן כשר הוא אפליקציה לאנדרואיד. סורקים את הברקוד במצלמה של הטלפון, או שולחים אליו את הקישור.</p>
+    <div id="qr"></div>
+  </div>
+
+  <div class="card" id="share" hidden>
+    <h2>קישור הרישום</h2>
+    <p class="muted">אותו קישור לכל התלמידים של מוסד הלימודים. אפשר להעביר אותו הלאה.</p>
+    <div class="linkbox"><input class="input" id="link" readonly><button class="btn" id="copy" type="button">העתקה</button></div>
+  </div>
+
+  <p class="muted" style="text-align:center;font-size:14px">צריכים עזרה? <a href="../install.html">מדריך ההתקנה המלא</a></p>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script src="../vendor/qrcode.js"></script>
+<script>
+(function () {
+  const PKG = "com.kosherguard.filter";
+  const q = new URLSearchParams(location.search);
+  const i = (q.get("i") || "").trim(), t = (q.get("t") || "").trim();
+  const $ = (id) => document.getElementById(id);
+  const toast = (msg) => { const el = $("toast"); el.textContent = msg; el.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("show"), 2400); };
+
+  if (!/^[A-Za-z0-9_-]{2,40}$/.test(i) || !/^[A-Za-z0-9]{8,64}$/.test(t)) { $("bad").hidden = false; return; }
+
+  // The canonical link: the same one the portal shows, whatever extra the browser added.
+  const link = `${location.origin}${location.pathname}?i=${encodeURIComponent(i)}&t=${encodeURIComponent(t)}`;
+  const copyLink = () => (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).catch(() => {
+    const el = $("link"); el.select(); try { document.execCommand("copy"); } catch (e) {}
+  });
+
+  $("share").hidden = false;
+  $("link").value = link;
+  $("link").onclick = (e) => e.target.select();
+  $("copy").onclick = () => copyLink().then(() => toast("הקישור הועתק"));
+
+  if (/android/i.test(navigator.userAgent)) {
+    $("android").hidden = false;
+    // Back here from the app-open button with no app installed (Chrome's fallback).
+    if (q.get("noapp")) $("join").classList.add("noapp");
+    const fallback = link + "&noapp=1";
+    $("open").href = `intent://join?i=${encodeURIComponent(i)}&t=${encodeURIComponent(t)}#Intent;scheme=kosherguard;package=${PKG};S.browser_fallback_url=${encodeURIComponent(fallback)};end`;
+    // Download the current versioned APK (the fixed name may be cached by the CDN), and put the
+    // link on the clipboard so the freshly installed app can pick it up with "הדבקת קישור".
+    fetch("../downloads/version.json", { cache: "no-store" }).then((r) => r.json()).then((v) => {
+      if (v && /^[\w.-]+\.apk$/.test(v.apk || "")) $("dl").href = "../downloads/" + v.apk;
+    }).catch(() => {});
+    $("dl").addEventListener("click", () => { copyLink(); });
+  } else {
+    $("other").hidden = false;
+    try { const qr = qrcode(0, "M"); qr.addData(link); qr.make(); $("qr").innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true }); }
+    catch (e) { $("qr").hidden = true; }
+  }
+})();
+</script>
+</body>
+</html>

@@ -11,7 +11,7 @@ import {
   orderBy, limit, onSnapshot, writeBatch, serverTimestamp, Timestamp, getCountFromServer, connectFirestoreEmulator,
 } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { FIREBASE_CONFIG, SUPER_ADMINS, ONLINE_WINDOW_MS } from "../assets/config.js";
-import { newMasterSecret, randomToken, computeUnlockCode } from "../assets/kgcrypto.js";
+import { newMasterSecret, randomToken, computeUnlockCode, makeSlotKey } from "../assets/kgcrypto.js";
 
 const app = initializeApp(FIREBASE_CONFIG);
 const auth = getAuth(app);
@@ -483,7 +483,7 @@ async function deleteInstitution(inst) {
   if (!confirm(`למחוק את "${inst.name}" עם כל המכשירים, הצוות והמפתחות שלו? אי אפשר לבטל.`)) return;
   try {
     const refs = [];
-    for (const sub of ["slots", "private", "public", "awards"]) (await getDocs(collection(db, "institutions", inst.id, sub))).forEach((d) => refs.push(d.ref));
+    for (const sub of ["slots", "slotKeys", "private", "public", "awards"]) (await getDocs(collection(db, "institutions", inst.id, sub))).forEach((d) => refs.push(d.ref));
     (await getDocs(query(collection(db, "devices"), where("instId", "==", inst.id)))).forEach((d) => refs.push(d.ref));
     (await getDocs(query(collection(db, "managers"), where("instId", "==", inst.id)))).forEach((d) => refs.push(d.ref));
     refs.push(doc(db, "institutions", inst.id));
@@ -588,6 +588,7 @@ function renderInstitution(instId, tab, arg) {
   S.subs.push(onSnapshot(doc(db, "institutions", instId), (snap) => {
     if (!snap.exists()) { toast("מוסד הלימודים לא נמצא", true); return go(S.isSuper ? "institutions" : ""); }
     S.inst = { id: snap.id, ...snap.data() };
+    ensureSlotKeys(S.inst);
     const tabs = INST_TABS.filter((t) => !t.perm || can(t.perm));
     renderSide([
       ...(S.isSuper ? [{ href: "institutions", icon: "back", label: "כל המוסדות" }, "-"] : []),
@@ -890,6 +891,7 @@ function buildDrawer(d) {
     e.target.value = ch;
     const out = $("dCode");
     if (ch.length !== 6) { out.hidden = true; return; }
+    if (!d.label) { out.textContent = "הטלפון עוד לא קיבל מפתח שחרור. חברו אותו לאינטרנט ונסו שוב."; out.hidden = false; return; }
     const keys = await getKeys();
     if (!keys) return;
     out.textContent = await computeUnlockCode(keys.masterSecret, d.label, ch);
@@ -1020,6 +1022,10 @@ async function removeDevice(d) {
       refs.slice(i, i + 400).forEach((r) => b.delete(r));
       await b.commit();
     }
+    // The next student in this slot gets a fresh key, so this phone's codes never open theirs.
+    const keys = d.slot != null && await getKeys();
+    if (keys) setDoc(doc(db, "institutions", d.instId, "slotKeys", String(d.slot)),
+      { ...(await makeSlotKey(keys.masterSecret, d.slot)), at: serverTimestamp() }).catch(() => {});
     // The student's own policy layer, if any (needs the editPolicy permission, so not in the batch).
     deleteDoc(doc(db, "institutions", d.instId, "public", deviceDocId(d.policyId || d.id))).catch(() => {});
     closeDrawer();
@@ -1068,7 +1074,7 @@ function renderHome() {
       <ol class="steps" style="gap:10px">
         <li><h4>קובעים מה חסום</h4><p><a href="#/inst/${inst.id}/policy">בוחרים חבילת סינון</a>, ואם רוצים גם <a href="#/inst/${inst.id}/time">זמני מסך</a>.</p></li>
         <li><h4>בוחרים מה בחנות</h4><p><a href="#/inst/${inst.id}/store">החנות הכשרה</a> כבר מלאה. אפשר לכבות מה שלא מתאים.</p></li>
-        <li><h4>רושמים טלפון ראשון</h4><p><a href="#/inst/${inst.id}/enroll">סורקים את הברקוד</a> באפליקציה בטלפון של התלמיד.</p></li>
+        <li><h4>רושמים טלפון ראשון</h4><p>שולחים לתלמידים את <a href="#/inst/${inst.id}/enroll">קישור הרישום</a>, או שהם סורקים את הברקוד במצלמה.</p></li>
       </ol></div></div>`;
     $("hIssues").innerHTML = withIssues.length ? withIssues.slice(0, 8).map((d) => {
       const iss = deviceIssues(d);
@@ -1709,50 +1715,70 @@ async function getPolicy() {
 }
 
 // ----- Enroll -------------------------------------------------------------
+// Every quota slot needs its offline-unlock key ready before a phone takes it (makeSlotKey):
+// the phone registering through the link reads its slot's key right after claiming the slot.
+const SITE_URL = "https://kosher.reembir.com";
+const joinLink = (inst, keys) => `${SITE_URL}/join/?i=${encodeURIComponent(inst.id)}&t=${encodeURIComponent(keys.enrollToken)}`;
+const slotKeysDone = new Set();
+async function ensureSlotKeys(inst) {
+  const max = inst.maxStudents || 0, mark = `${inst.id}:${max}`;
+  if (!max || slotKeysDone.has(mark)) return;
+  slotKeysDone.add(mark);
+  try {
+    const col = collection(db, "institutions", inst.id, "slotKeys");
+    if ((await getCountFromServer(col)).data().count >= max) return;
+    const keys = await getDoc(doc(db, "institutions", inst.id, "private", "keys"));
+    const master = keys.exists() && keys.data().masterSecret;
+    if (!master) return;
+    const have = new Set((await getDocs(col)).docs.map((d) => d.id));
+    const missing = [];
+    for (let n = 0; n < max; n++) if (!have.has(String(n))) missing.push(n);
+    for (let i = 0; i < missing.length; i += 400) {
+      const b = writeBatch(db);
+      for (const n of missing.slice(i, i + 400)) b.set(doc(col, String(n)), { ...(await makeSlotKey(master, n)), at: serverTimestamp() });
+      await b.commit();
+    }
+  } catch (e) { slotKeysDone.delete(mark); console.warn("slot keys", e); }
+}
+
 async function renderEnroll() {
   const inst = S.inst;
   main(loadingHtml);
   const [keys, policy, used] = await Promise.all([getKeys(), getPolicy(), slotCount(inst.id)]);
   if (!keys) return main(head("רישום מכשיר", "") + emptyHtml("key", "אין מפתח למוסד הלימודים", "פנו למנהל המערכת"));
-  const payload = JSON.stringify({
-    kgSettings: 1,
-    masterSecret: keys.masterSecret,
-    // The phone pulls the policy from the server right after enrolling; keeping it out of the QR
-    // keeps the code small however long the blocklists grow.
-    settings: {},
-    cloud: { p: FIREBASE_CONFIG.projectId, i: inst.id, t: keys.enrollToken, n: inst.name },
-  });
+  ensureSlotKeys(inst);
+  const link = joinLink(inst, keys);
   const left = Math.max(0, (inst.maxStudents || 0) - used);
-  main(head("רישום מכשיר", "סורקים את הברקוד הזה פעם אחת בכל טלפון של תלמיד",
+  main(head("רישום מכשיר", "קישור קבוע אחד לכל התלמידים: סורקים את הברקוד במצלמה של הטלפון, או שולחים את הקישור",
     `<button class="btn ghost" id="btnDlQr">${ic("download")}הורדת ברקוד</button><button class="btn ghost" onclick="print()">${ic("print")}הדפסה</button>`) + `
     <div class="grid-2" style="align-items:start">
       <div class="panel"><div class="panel-body stack">
         <div class="qr-box" id="enrollQr"></div>
+        <div class="field"><label>קישור הרישום</label>
+          <div style="display:flex;gap:8px"><input class="input ltr mono" id="joinLink" readonly value="${esc(link)}" style="flex:1;min-width:0;font-size:13px">
+          <button class="btn" id="btnCopyLink">${ic("copy")}העתקה</button></div></div>
+        ${navigator.share ? `<button class="btn ghost" id="btnShareLink">${ic("msg")}שיתוף הקישור</button>` : ""}
         <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
           <span class="pill ${left ? "green" : "red"}">${left ? `נותרו ${left} מקומות מתוך ${inst.maxStudents}` : "המכסה מלאה"}</span>
           <span class="pill">מדיניות גרסה ${policy.version || 0}</span></div>
-        <div class="callout warn">${ic("lock")}<div>הברקוד מכיל את מפתח השחרור של מוסד הלימודים. שמרו עליו כמו על סיסמה ואל תשלחו אותו לתלמידים.</div></div>
+        <div class="callout">${ic("shield")}<div>אפשר לשלוח את הקישור ולתלות את הברקוד בגלוי: אין בו מפתח שחרור. כל טלפון מקבל מפתח משלו מהשרת, וקודי השחרור של תלמיד אחד לא פותחים טלפון של תלמיד אחר. כל טלפון שנרשם תופס מקום במכסה ומופיע ברשימת המכשירים, ושם אפשר להסיר אותו.</div></div>
       </div></div>
       <div class="stack">
         <div class="panel"><div class="panel-head"><h2>איך רושמים טלפון</h2></div><div class="panel-body">
           <ol class="steps" style="gap:10px">
-            <li><h4>מתקינים</h4><p>מורידים את האפליקציה בטלפון של התלמיד. <a href="../install.html" target="_blank">מדריך ההתקנה</a></p></li>
-            <li><h4>סורקים</h4><p>במסך הפתיחה של האפליקציה לוחצים "סריקת ברקוד מוסד" וסורקים את הברקוד.</p></li>
-            <li><h4>שם התלמיד</h4><p>מקלידים שם וכיתה. הטלפון מופיע מיד ברשימת המכשירים.</p></li>
+            <li><h4>סורקים או פותחים את הקישור</h4><p>במצלמה של הטלפון של התלמיד, או בלחיצה על הקישור שנשלח אליו.</p></li>
+            <li><h4>האפליקציה לא מותקנת?</h4><p>נפתח דף שמוריד אותה. אחרי ההתקנה פותחים את הקישור שוב (או לוחצים "הדבקת קישור" באפליקציה). <a href="../install.html" target="_blank">מדריך ההתקנה</a></p></li>
+            <li><h4>שם וכיתה</h4><p>האפליקציה נפתחת ישר למסך הרישום. מקלידים שם וכיתה, והטלפון מופיע מיד ברשימת המכשירים.</p></li>
             <li><h4>הרשאות</h4><p>מאשרים את ההרשאות שהאפליקציה מבקשת, וזהו.</p></li>
           </ol></div></div>
-        ${can("manageStaff") || S.isSuper ? `<div class="panel"><div class="panel-head"><h2>ברקוד שדלף?</h2></div><div class="panel-body stack" style="gap:10px">
-          <p class="muted small" style="margin:0">החלפת אסימון הרישום מבטלת את הברקוד הישן לרישום מכשירים חדשים. מכשירים שכבר רשומים ממשיכים לעבוד.</p>
-          <button class="btn sm ghost" id="btnRotate" ${S.isSuper ? "" : "disabled title=\"רק מנהל המערכת\""}>${ic("sync")}החלפת אסימון רישום</button></div></div>` : ""}
       </div></div>`);
-  try { $("enrollQr").innerHTML = makeQr(payload).createSvgTag({ cellSize: 5, margin: 6 }); }
-  catch { $("enrollQr").innerHTML = '<span class="muted">המדיניות ארוכה מדי לברקוד אחד</span>'; }
-  $("btnDlQr").onclick = () => downloadQr(payload, `kosherguard-${inst.id}.png`);
-  const rot = $("btnRotate");
-  if (rot && S.isSuper) rot.onclick = async () => {
-    if (!confirm("להחליף את אסימון הרישום? ברקודים מודפסים ישנים יפסיקו לעבוד לרישום חדש.")) return;
-    try { await updateDoc(doc(db, "institutions", inst.id, "private", "keys"), { enrollToken: randomToken(16) }); S.keys = null; toast("הוחלף"); renderEnroll(); } catch (e) { fail(e); }
-  };
+  try { $("enrollQr").innerHTML = makeQr(link).createSvgTag({ cellSize: 6, margin: 6 }); }
+  catch { $("enrollQr").innerHTML = '<span class="muted">לא ניתן ליצור ברקוד</span>'; }
+  $("btnDlQr").onclick = () => downloadQr(link, `kosherguard-${inst.id}.png`);
+  $("btnCopyLink").onclick = () => copy(link);
+  $("joinLink").onclick = (e) => e.target.select();
+  const sh = $("btnShareLink");
+  if (sh) sh.onclick = () => navigator.share({ title: `רישום ל${inst.name ? "מסנן כשר · " + inst.name : "מסנן כשר"}`, text: "קישור להתקנת מסנן כשר ולרישום הטלפון:", url: link }).catch(() => {});
 }
 
 // ----- Policy -------------------------------------------------------------

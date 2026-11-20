@@ -65,3 +65,23 @@ export async function computeUnlockCode(masterRecoveryCode, deviceLabel, challen
     (digest[offset + 3]);
   return (binary % 100000000).toString().padStart(8, "0");
 }
+
+/** Four random base32 characters, like the app's AdminKeyManager.generateDeviceSuffix. */
+export function newDeviceSuffix() {
+  return [...crypto.getRandomValues(new Uint8Array(4))].map((b) => BASE32_ALPHABET[b & 31]).join("");
+}
+
+/**
+ * The offline-unlock key of quota slot [n] (institutions/{i}/slotKeys/{n}): a fresh label, that
+ * label's device secret HMAC(master, label) in the app's recovery-code format, and the store key
+ * HMAC(master, "kosherguard-store-v1") as base64 (StoreCodec.deriveStoreKey). A phone that
+ * registers through the shareable link reads only this, never the master secret.
+ */
+export async function makeSlotKey(masterRecoveryCode, n) {
+  const master = base32Decode(masterRecoveryCode);
+  const label = `T${Number(n) + 1}-${newDeviceSuffix()}`;
+  const enc = new TextEncoder();
+  const secret = await hmacSha256(master, enc.encode(label));
+  const store = await hmacSha256(master, enc.encode("kosherguard-store-v1"));
+  return { label, secret: toRecoveryCode(secret), storeKey: btoa(String.fromCharCode(...store)) };
+}
