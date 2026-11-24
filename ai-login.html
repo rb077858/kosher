@@ -9,6 +9,7 @@
 <link rel="icon" href="assets/icon.svg">
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
+  [hidden]{display:none!important}
   body{min-height:100vh;display:grid;place-items:center;padding:24px;font-family:system-ui,"Segoe UI",Arial,sans-serif;color:#0e1726;
     background:radial-gradient(700px 360px at 90% -10%,#2c58ff55,transparent 60%),radial-gradient(600px 360px at 0% 110%,#10c49433,transparent 60%),linear-gradient(180deg,#0b1630,#14254d)}
   .card{background:#fff;border-radius:28px;max-width:420px;width:100%;padding:38px 30px 30px;text-align:center;box-shadow:0 40px 80px -30px #000c;animation:rise .5s cubic-bezier(.2,0,0,1) both}
@@ -39,11 +40,13 @@
 </div>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signInWithEmailAndPassword,
+  setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 import { FIREBASE_CONFIG } from "./assets/config.js";
 
 const q = new URLSearchParams(location.search);
 const port = q.get("port"), state = q.get("state");
+const googleOnly = q.get("mode") === "google"; // the program's "התחברות עם Google" button
 const $ = (id) => document.getElementById(id);
 // Only ever hand the sign-in to this computer's own program, on a plain port number.
 const valid = /^\d{4,5}$/.test(port || "") && /^[\w-]{10,64}$/.test(state || "");
@@ -51,14 +54,49 @@ if (!valid) $("card").innerHTML = '<h1 class="bad">קישור לא תקין</h1>
 
 const auth = getAuth(initializeApp(FIREBASE_CONFIG));
 auth.languageCode = "he";
-const handOver = (user) => {
+// This tab only: a later sign-in from the program must not silently reuse whoever signed in before.
+await setPersistence(auth, browserSessionPersistence);
+const google = () => new GoogleAuthProvider().setCustomParameters({ prompt: "select_account" });
+
+// Google only: straight to Google's account page (a redirect needs no click, a popup would be
+// blocked), then back here with the result. Email and password are typed in the program itself.
+if (valid && googleOnly) {
+  document.querySelector(".or")?.remove();
+  $("f")?.remove();
+  $("g").hidden = true;
+  document.querySelector("h1").textContent = "מעבירים להתחברות עם Google…";
+  document.querySelector("p").textContent = "בוחרים את חשבון הניהול שלכם. ההתחברות נמסרת רק לתוכנה שבמחשב הזה.";
+  try {
+    const res = await getRedirectResult(auth);
+    if (res?.user) {
+      document.querySelector("h1").textContent = "מתחבר…";
+      handOverLater(res.user);
+    } else if (!sessionStorage.getItem("kg-google-tried")) {
+      sessionStorage.setItem("kg-google-tried", "1");
+      await signInWithRedirect(auth, google());
+    } else {
+      throw new Error("back without a sign-in");
+    }
+  } catch (e) {
+    // Came back without a result (blocked storage, closed, cancelled): one button, Google only.
+    sessionStorage.removeItem("kg-google-tried");
+    document.querySelector("h1").textContent = "התחברות עם Google";
+    $("g").hidden = false;
+    if (e?.code) $("err").textContent = msg(e);
+  }
+}
+function handOverLater(user) { setTimeout(() => handOver(user), 0); }
+function handOver(user) {
+  sessionStorage.removeItem("kg-google-tried");
   location.replace(`http://127.0.0.1:${port}/auth/done?state=${encodeURIComponent(state)}#rt=${encodeURIComponent(user.refreshToken)}`);
-};
-const msg = (e) => ({ "auth/invalid-credential": "האימייל או הסיסמה שגויים", "auth/popup-closed-by-user": "החלון נסגר לפני ההתחברות",
-  "auth/too-many-requests": "יותר מדי ניסיונות. נסו שוב בעוד כמה דקות" })[e.code] || e.message;
+}
+function msg(e) {
+  return ({ "auth/invalid-credential": "האימייל או הסיסמה שגויים", "auth/popup-closed-by-user": "החלון נסגר לפני ההתחברות",
+    "auth/too-many-requests": "יותר מדי ניסיונות. נסו שוב בעוד כמה דקות" })[e.code] || e.message;
+}
 $("g")?.addEventListener("click", async () => {
   $("err").textContent = "";
-  try { handOver((await signInWithPopup(auth, new GoogleAuthProvider())).user); } catch (e) { $("err").textContent = msg(e); }
+  try { handOver((await signInWithPopup(auth, google())).user); } catch (e) { $("err").textContent = msg(e); }
 });
 $("f")?.addEventListener("submit", async (ev) => {
   ev.preventDefault();

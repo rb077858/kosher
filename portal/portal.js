@@ -2051,18 +2051,25 @@ async function renderAi() {
           <button class="btn sm ghost" data-add="allow">אישור ידני</button><button class="btn sm ghost" data-add="block">חסימה ידנית</button></div></div>
       <div class="rows" id="aiRows">${loadingHtml}</div></div>`);
 
-  // Every PC running the server reports in aiServers/{id} (load every ~20s).
-  const SERVER_ALIVE_MS = 75 * 1000;
+  // Every PC running the server reports in aiServers/{id} every 10s, and marks itself off
+  // (online: false) when it stops properly. Silent for 30s (switched off, no network) = off.
+  const SERVER_ALIVE_MS = 30 * 1000;
+  const isOn = (d) => d.online !== false && Date.now() - ms(d.lastSeen) < SERVER_ALIVE_MS;
+  const seenAgo = (d) => {
+    const s = Math.max(0, Math.round((Date.now() - ms(d.lastSeen)) / 1000));
+    return s < 60 ? `נראה לפני ${s} שנ׳` : ago(d.lastSeen);
+  };
   const drawServers = (list) => {
-    const alive = list.filter((d) => Date.now() - ms(d.lastSeen) < SERVER_ALIVE_MS);
+    const alive = list.filter(isOn);
     $("aiSrvPill").className = "pill " + (alive.length ? "green" : list.length ? "red" : "warn");
     $("aiSrvPill").textContent = alive.length ? `${alive.length} ${alive.length === 1 ? "פועל" : "פועלים"}` : list.length ? "כולם כבויים" : "לא הותקן";
     $("aiSrv").innerHTML = !list.length ? emptyHtml("monitor", "עוד לא חובר מחשב", "התקינו את שרת ה-AI במחשב והתחברו עם החשבון שלכם")
       : list.sort((a, b) => ms(b.lastSeen) - ms(a.lastSeen)).map((d) => {
-        const on = Date.now() - ms(d.lastSeen) < SERVER_ALIVE_MS;
+        const on = isOn(d);
         return `<div class="row"><div class="dev-ic">${ic("monitor")}</div>
           <div class="t"><b>${esc(d.host || "—")}</b><small><span class="ltr">${esc(d.model || "")}</span> · ${esc(d.account || "")}</small></div>
-          <div class="r">${on ? `<span class="muted">${d.busy ? `בודק ${d.busy}` : "פנוי"} · ~${Math.round(d.avgSeconds || 0)} שנ׳ לבדיקה · ${d.checksToday ?? 0} היום</span>` : `<span class="muted">${ago(d.lastSeen)}</span>`}
+          <div class="r">${on ? `<span class="muted">${d.busy ? `בודק ${d.busy}` : "פנוי"} · ~${Math.round(d.avgSeconds || 0)} שנ׳ לבדיקה · ${d.checksToday ?? 0} היום</span>`
+            : `<span class="muted">${d.online === false ? "כובה · " : ""}${seenAgo(d)}</span>`}
             <span class="pill ${on ? "green" : "red"}">${on ? "פועל" : "כבוי"}</span>
             ${on ? "" : `<button class="icon-btn" data-forget="${esc(d.id)}" title="הסרה מהרשימה">${ic("trash")}</button>`}</div></div>`;
       }).join("");
@@ -2075,7 +2082,8 @@ async function renderAi() {
     if (!b || !confirm("להסיר את המחשב מהרשימה? אם הוא יופעל שוב, הוא יחזור אליה מעצמו.")) return;
     try { await deleteDoc(doc(db, "institutions", inst.id, "aiServers", b.dataset.forget)); } catch (err) { fail(err); }
   };
-  const tick = setInterval(() => drawServers(servers), 20000);
+  // Re-judged every 5s, so a server that goes quiet turns "off" here within seconds, not on the next change.
+  const tick = setInterval(() => drawServers(servers), 5000);
   S.subs.push(() => clearInterval(tick));
 
   const col = collection(db, "institutions", inst.id, "aiChecks");
