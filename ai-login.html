@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<title>התחברות לשרת הסינון החכם · מסנן כשר</title>
+<link rel="icon" href="assets/icon.svg">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{min-height:100vh;display:grid;place-items:center;padding:24px;font-family:system-ui,"Segoe UI",Arial,sans-serif;color:#0e1726;
+    background:radial-gradient(700px 360px at 90% -10%,#2c58ff55,transparent 60%),radial-gradient(600px 360px at 0% 110%,#10c49433,transparent 60%),linear-gradient(180deg,#0b1630,#14254d)}
+  .card{background:#fff;border-radius:28px;max-width:420px;width:100%;padding:38px 30px 30px;text-align:center;box-shadow:0 40px 80px -30px #000c;animation:rise .5s cubic-bezier(.2,0,0,1) both}
+  @keyframes rise{from{opacity:0;transform:translateY(16px)}}
+  .mark{width:76px;height:76px;margin:0 auto 18px;border-radius:24px;display:grid;place-items:center;background:linear-gradient(135deg,#3b6bff,#12c597);box-shadow:0 18px 34px -14px #3b6bffcc}
+  .mark svg{width:40px;height:40px;color:#fff}
+  h1{font-size:23px;margin-bottom:8px}
+  p{color:#5b6b82;line-height:1.6;font-size:15px;margin-bottom:22px}
+  button{width:100%;font:inherit;font-weight:700;font-size:16px;border-radius:15px;padding:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px}
+  .g{border:1.5px solid #e3e8f0;background:#fff}.g:hover{background:#f4f7fb}
+  .g svg{width:20px;height:20px}
+  .or{margin:18px 0;color:#9aa8bf;font-size:13px}
+  input{width:100%;border:1.5px solid #e3e8f0;border-radius:13px;padding:12px 14px;font:inherit;margin-bottom:10px;direction:ltr}
+  .e{background:#e9efff;color:#2453d6;border:0}
+  .err{color:#d6334a;font-weight:600;font-size:14px;min-height:20px;margin-top:14px}
+  .bad{color:#d6334a}
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8.5l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z"/></svg></div>
+  <h1>התחברות לשרת הסינון החכם</h1>
+  <p>התחברו עם חשבון הניהול שלכם. ההתחברות נמסרת רק לתוכנה שבמחשב הזה.</p>
+  <button class="g" id="g"><svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>התחברות עם Google</button>
+  <div class="or">או</div>
+  <form id="f"><input id="em" type="email" placeholder="אימייל" autocomplete="username"><input id="pw" type="password" placeholder="סיסמה" autocomplete="current-password"><button class="e">התחברות</button></form>
+  <div class="err" id="err"></div>
+</div>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+import { FIREBASE_CONFIG } from "./assets/config.js";
+
+const q = new URLSearchParams(location.search);
+const port = q.get("port"), state = q.get("state");
+const $ = (id) => document.getElementById(id);
+// Only ever hand the sign-in to this computer's own program, on a plain port number.
+const valid = /^\d{4,5}$/.test(port || "") && /^[\w-]{10,64}$/.test(state || "");
+if (!valid) $("card").innerHTML = '<h1 class="bad">קישור לא תקין</h1><p>פתחו את ההתחברות מתוך תוכנת השרת במחשב.</p>';
+
+const auth = getAuth(initializeApp(FIREBASE_CONFIG));
+auth.languageCode = "he";
+const handOver = (user) => {
+  location.replace(`http://127.0.0.1:${port}/auth/done?state=${encodeURIComponent(state)}#rt=${encodeURIComponent(user.refreshToken)}`);
+};
+const msg = (e) => ({ "auth/invalid-credential": "האימייל או הסיסמה שגויים", "auth/popup-closed-by-user": "החלון נסגר לפני ההתחברות",
+  "auth/too-many-requests": "יותר מדי ניסיונות. נסו שוב בעוד כמה דקות" })[e.code] || e.message;
+$("g")?.addEventListener("click", async () => {
+  $("err").textContent = "";
+  try { handOver((await signInWithPopup(auth, new GoogleAuthProvider())).user); } catch (e) { $("err").textContent = msg(e); }
+});
+$("f")?.addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  $("err").textContent = "";
+  try { handOver((await signInWithEmailAndPassword(auth, $("em").value.trim(), $("pw").value)).user); } catch (e) { $("err").textContent = msg(e); }
+});
+</script>
+</body>
+</html>

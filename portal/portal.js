@@ -61,6 +61,8 @@ const ICONS = {
   clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
   home: '<path d="M3 11 12 3l9 8M5 9.5V21h14V9.5M10 21v-6h4v6"/>',
   store: '<path d="M3 9l1.5-5h15L21 9M3 9h18v2a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0V9zM5 13v8h14v-8M10 21v-5h4v5"/>',
+  spark: '<path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+  monitor: '<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>',
 };
 const ic = (name, extra = "") =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ${extra}>${ICONS[name] || ""}</svg>`;
@@ -132,7 +134,7 @@ const SILENT_MS = 2 * 60 * 60 * 1000;
 // Settings changed on the phone itself (during an admin unlock) — reported as localChanges keys.
 const LOCAL_CHANGE_LABELS = {
   profileId: "חבילת סינון", customCategoryIds: "קטגוריות", customAppPackages: "אפליקציות חסומות",
-  filteringEnabled: "הסינון", playStore: "Google Play", blockedDomains: "אתרים חסומים", adBlock: "חוסם פרסומות",
+  filteringEnabled: "הסינון", playStore: "Google Play", blockedDomains: "אתרים חסומים", adBlock: "חוסם פרסומות", aiStrict: "סינון חכם",
   dnsServer: "שרת DNS", vpnEnabled: "סינון אתרים", downtimeEnabled: "שעות שינה", downtimeStartMinutes: "שעות שינה",
   downtimeEndMinutes: "שעות שינה", dailyDeviceLimitEnabled: "מגבלת זמן", dailyDeviceLimitMinutes: "מגבלת זמן",
   essentialCountsTowardTime: "ספירת זמן", autoUpdate: "עדכון אוטומטי", blockApkInstall: "התקנת קובצי APK",
@@ -569,6 +571,7 @@ const INST_TABS = [
   { id: "time", icon: "clock", label: "זמני מסך" },
   { id: "game", icon: "trophy", label: "מצב משחק" },
   { id: "policy", icon: "sliders", label: "מה חסום" },
+  { id: "ai", icon: "spark", label: "סינון חכם (AI)" },
   { id: "store", icon: "store", label: "החנות הכשרה" },
   { id: "enroll", icon: "qr", label: "רישום מכשיר" },
   { id: "codes", icon: "key", label: "קודי שחרור" },
@@ -606,6 +609,7 @@ const TAB_RENDER = {
   enroll: renderEnroll,
   policy: renderPolicy,
   store: renderStore,
+  ai: renderAi,
   codes: renderCodes,
   staff: renderStaff,
   info: renderInfo,
@@ -1824,6 +1828,10 @@ function chipEditor(container, kind, initial, readOnly, onChange = () => {}) {
     };
     $(id + "_add").onclick = add;
     $(id + "_in").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); add(); } };
+    // Typing a site counts as a change, and saving takes what's still in the box (people type
+    // an address and press save without "+" or Enter).
+    $(id + "_in").oninput = () => onChange();
+    return () => { if ($(id + "_in")?.value.trim()) add(); return list; };
   }
   return () => list;
 }
@@ -1924,6 +1932,7 @@ async function renderPolicy(scopeParam) {
       </div>
       <div id="secSites">${sitesPanel("אתרים חסומים", "כתובת אתר, למשל youtube.com. נחסמים גם כל תתי-האתרים שלו, בכל הדפדפנים והאפליקציות.")}</div>
       <div class="panel"><div class="panel-head"><h2>סינון אינטרנט</h2></div><div class="panel-body stack" style="gap:10px">
+        <label class="check"><input type="checkbox" name="aiStrict" ${s.aiStrict ? "checked" : ""}><span><b>סינון חכם (AI) · קשוח ואיטי יותר</b><small>כל אתר חדש נבדק על ידי בינה מלאכותית במחשב של המוסד לפני שהוא נפתח, והתלמיד רואה בינתיים "בודק את האתר". דורש את שרת ה-AI במחשב (<a href="#/inst/${S.inst.id}/ai">התקנה ומצב</a>). כשהמחשב כבוי, הטלפונים חוזרים לסינון הרגיל.</small></span></label>
         <label class="check"><input type="checkbox" name="adBlock" ${s.adBlock ? "checked" : ""}><span><b>חוסם פרסומות</b><small>חוסם פרסומות ואתרים לא ראויים בכל המכשירים. אפשר להפעיל או לכבות גם לכיתה או לתלמיד מסוים.</small></span></label>
         <details class="faq" style="margin:0"><summary>שרת DNS מותאם (מתקדם)</summary>
           <p>כתובת DNS-over-HTTPS שדרכה יעברו כל שאילתות הרשת במכשירים, במקום שרת הסינון המובנה. השאירו ריק לשימוש בברירת המחדל.</p>
@@ -1973,6 +1982,7 @@ async function renderPolicy(scopeParam) {
       essentialAppPackages: getEssential(),
       blockedDomains: getSites(),
       adBlock: f.adBlock.checked,
+      aiStrict: f.aiStrict.checked,
       dnsServer: dns,
       vpnEnabled: true,
       autoUpdate: f.autoUpdate.checked,
@@ -1994,6 +2004,105 @@ function bindScopeBar(go2) {
   $("scSchool").onclick = () => go2("school");
   $("scClass").onchange = (e) => { if (e.target.value) go2("class:" + e.target.value); };
   $("scDevice").onchange = (e) => { if (e.target.value) go2("device:" + e.target.value); };
+}
+
+// ----- Smart filtering (AI) -----------------------------------------------
+// The AI server is the Windows program (downloads/KosherGuard-AI-Setup.exe) running on a manager's
+// PC, signed in with that manager's account. It answers the phones' requests in
+// institutions/{i}/aiChecks/{site} and beats in institutions/{i}/ai/server. See firestore.rules.
+const AI_ALIVE_MS = 150 * 1000;
+const AI_STATUS = { allow: ["green", "אושר"], block: ["red", "נחסם"], pending: ["blue", "ממתין"], checking: ["blue", "נבדק עכשיו"], error: ["warn", "לא נבדק"] };
+
+async function renderAi() {
+  const inst = S.inst;
+  const pol = await getDoc(doc(db, "institutions", inst.id, "public", "policy")).catch(() => null);
+  const settings = pol?.exists() ? (pol.data().settings || {}) : {};
+  const editable = can("editPolicy");
+  main(head("סינון חכם (AI)", `${esc(inst.name)} · בדיקת אתרים חדשים בבינה מלאכותית שרצה במחשב שלכם`) + `
+    <div class="grid-2" style="margin-bottom:22px;align-items:stretch">
+      <div class="panel"><div class="panel-head"><h2>שרת ה-AI</h2><span id="aiSrvPill" class="pill">…</span></div>
+        <div class="panel-body stack" id="aiSrv" style="gap:8px">${loadingHtml}</div></div>
+      <div class="panel"><div class="panel-head"><h2>התקנה במחשב</h2></div><div class="panel-body stack" style="gap:12px">
+        <p class="muted" style="margin:0">מחשב Windows אחד שנשאר דלוק משמש שרת בדיקה לכל המוסדות שאתם מנהלים. ההתקנה מורידה מודל AI (כ-5GB) ופועלת מעצמה בכל הפעלה של המחשב.</p>
+        <ol class="muted" style="margin:0;padding-inline-start:18px;line-height:1.9">
+          <li>מורידים ומריצים את תוכנת ההתקנה</li><li>מתחברים עם החשבון שלכם (${esc(S.email)})</li><li>זהו. המצב יופיע כאן תוך דקה</li></ol>
+        <a class="btn" href="../downloads/KosherGuard-AI-Setup.exe" download>${ic("download")}הורדת שרת ה-AI ל-Windows</a>
+      </div></div>
+    </div>
+    <div class="panel" style="margin-bottom:22px"><div class="panel-head"><h2>הגדרה</h2></div><div class="panel-body stack" style="gap:12px">
+      <label class="check"><input type="checkbox" id="aiStrict" ${settings.aiStrict ? "checked" : ""} ${editable ? "" : "disabled"}><span><b>סינון חכם פעיל בכל המוסד</b><small>כל אתר חדש נבדק לפני שהוא נפתח. אתר שנבדק נשמר ל-24 שעות לכל הטלפונים במוסד. אפשר להפעיל גם לכיתה או לתלמיד מ"מה חסום".</small></span></label>
+      <div class="field"><label>הנחיות נוספות ל-AI (לא חובה)</label>
+        <textarea class="input" id="aiPolicy" rows="2" placeholder="למשל: לחסום אתרי משחקים ורשתות חברתיות. לאשר אתרי לימוד." ${editable ? "" : "disabled"}>${esc(settings.aiPolicy || "")}</textarea></div>
+      ${editable ? `<div><button class="btn sm" id="aiSave">שמירה</button></div>` : ""}
+    </div></div>
+    <div class="panel"><div class="panel-head"><h2>אתרים שנבדקו</h2>
+        <div class="toolbar"><input class="input ltr" id="aiAddHost" placeholder="example.com" style="max-width:200px">
+          <button class="btn sm ghost" data-add="allow">אישור ידני</button><button class="btn sm ghost" data-add="block">חסימה ידנית</button></div></div>
+      <div class="rows" id="aiRows">${loadingHtml}</div></div>`);
+
+  const drawServer = (d) => {
+    const seen = ms(d?.lastSeen);
+    const alive = seen && Date.now() - seen < AI_ALIVE_MS;
+    $("aiSrvPill").className = "pill " + (alive ? "green" : seen ? "red" : "warn");
+    $("aiSrvPill").textContent = alive ? "פועל" : seen ? "כבוי" : "לא הותקן";
+    $("aiSrv").innerHTML = !seen ? emptyHtml("monitor", "עוד לא חובר מחשב", "התקינו את שרת ה-AI במחשב והתחברו עם החשבון הזה")
+      : `<div class="kv">
+         <div><small>מחשב</small>${esc(d.host || "—")}</div>
+         <div><small>נראה לאחרונה</small>${ago(d.lastSeen)}</div>
+         <div><small>מודל AI</small><span class="ltr">${esc(d.model || "—")}</span></div>
+         <div><small>בדיקות היום</small>${d.checksToday ?? 0}</div>
+         <div style="grid-column:1/-1"><small>מחובר בחשבון</small><span class="ltr">${esc(d.account || "—")}</span></div></div>`;
+  };
+  let server = null;
+  S.subs.push(onSnapshot(doc(db, "institutions", inst.id, "ai", "server"), (s) => { server = s.exists() ? s.data() : null; drawServer(server); }, fail));
+  const tick = setInterval(() => drawServer(server), 20000);
+  S.subs.push(() => clearInterval(tick));
+
+  const col = collection(db, "institutions", inst.id, "aiChecks");
+  S.subs.push(onSnapshot(query(col, orderBy("requestedAt", "desc"), limit(150)), (snap) => {
+    const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    $("aiRows").innerHTML = rows.length ? rows.map((r) => {
+      const [cls, label] = AI_STATUS[r.status] || ["", r.status];
+      return `<div class="row"><div class="dev-ic">${ic(r.status === "block" ? "lock" : r.status === "allow" ? "shield" : "spark")}</div>
+        <div class="t"><b class="ltr">${esc(r.id)}</b><small>${esc(r.reason || (r.status === "pending" ? "ממתין לשרת" : ""))}${r.source === "manual" ? " · ידני" : ""}</small></div>
+        <div class="r">${r.category ? `<span class="pill">${esc(r.category)}</span>` : ""}${typeof r.risk === "number" && r.status !== "pending" ? `<span class="muted">סיכון ${r.risk}</span>` : ""}
+          <span class="pill ${cls}">${label}</span><span class="muted">${ago(r.checkedAt || r.requestedAt)}</span>
+          <button class="icon-btn" data-ai="allow" data-d="${esc(r.id)}" title="אישור">${ic("unlock")}</button>
+          <button class="icon-btn" data-ai="block" data-d="${esc(r.id)}" title="חסימה">${ic("lock")}</button>
+          <button class="icon-btn" data-ai="recheck" data-d="${esc(r.id)}" title="בדיקה מחדש">${ic("sync")}</button></div></div>`;
+    }).join("") : emptyHtml("spark", "עוד לא נבדקו אתרים", "כשהסינון החכם פעיל, כל אתר חדש שתלמיד פותח יופיע כאן");
+  }, fail));
+
+  const setManual = async (site, status) => {
+    site = String(site || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^www\./, "");
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(site)) return toast("כתובת אתר לא תקינה", true);
+    await setDoc(doc(col, site), {
+      domain: site, status, source: "manual", category: "ידני", risk: status === "block" ? 100 : 0,
+      reason: status === "block" ? "נחסם ידנית על ידי המוסד" : "אושר ידנית על ידי המוסד",
+      requestedAt: serverTimestamp(), checkedAt: serverTimestamp(), checkedBy: S.email,
+    });
+    toast(status === "block" ? "נחסם" : "אושר");
+  };
+  $("aiRows").closest(".panel").onclick = async (e) => {
+    const b = e.target.closest("[data-ai],[data-add]");
+    if (!b) return;
+    try {
+      if (b.dataset.add) { await setManual($("aiAddHost").value, b.dataset.add); $("aiAddHost").value = ""; return; }
+      if (b.dataset.ai === "recheck") { await deleteDoc(doc(col, b.dataset.d)); toast("ייבדק שוב בפעם הבאה שייפתח"); return; }
+      await setManual(b.dataset.d, b.dataset.ai);
+    } catch (err) { fail(err); }
+  };
+  if ($("aiSave")) $("aiSave").onclick = async () => {
+    try {
+      const fresh = await getDoc(doc(db, "institutions", inst.id, "public", "policy"));
+      const data = fresh.exists() ? fresh.data() : { settings: DEFAULT_SETTINGS, telemetry: DEFAULT_TELEMETRY, version: 0 };
+      const next = { ...(data.settings || {}), aiStrict: $("aiStrict").checked, aiPolicy: $("aiPolicy").value.trim() };
+      await setDoc(doc(db, "institutions", inst.id, "public", "policy"), {
+        settings: next, version: (data.version || 0) + 1, updatedAt: serverTimestamp(), updatedBy: S.email,
+      }, { mergeFields: ["settings", "version", "updatedAt", "updatedBy"] });
+      toast("נשמר. הטלפונים יתעדכנו תוך שניות");
+    } catch (err) { fail(err); }
+  };
 }
 
 // ----- Kosher store ---------------------------------------------------------
