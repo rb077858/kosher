@@ -644,7 +644,8 @@ function head(title, sub, actions = "") {
 function renderDevices(preset) {
   const inst = S.inst;
   main(head("תלמידים ומכשירים", `${esc(inst.name)} · מצב כל מכשירי התלמידים בזמן אמת`,
-    `${can("remoteCommands") ? `<button class="btn ghost" id="btnRefreshAll">${ic("sync")}רענון</button>` : ""}
+    `${can("remoteCommands") ? `<button class="btn ghost" id="btnRefreshAll">${ic("sync")}רענון</button>
+      <button class="btn ghost" id="btnMessageAll">${ic("msg")}הודעה</button>` : ""}
      ${can("editPolicy") ? `<button class="btn ghost" id="btnPushUpdate" disabled>${ic("download")}עדכון אפליקציה</button>` : ""}
      <a class="btn" href="#/inst/${inst.id}/enroll">${ic("plus")}רישום מכשיר</a>`) + `
     <div class="grid-4" style="margin-bottom:22px" id="devStats"></div>
@@ -736,6 +737,8 @@ function drawDevices() {
 
   const refresh = $("btnRefreshAll");
   if (refresh) refresh.onclick = () => refreshAll(refresh);
+  const msgAll = $("btnMessageAll");
+  if (msgAll) msgAll.onclick = () => messageModal(S.devices);
 
   const upd = $("btnPushUpdate");
   if (upd) {
@@ -1141,17 +1144,73 @@ async function sendToDevices(devices, type, payload = {}) {
   }
 }
 
+// Full-screen message colors (keep in sync with the app's notif/MessageOverlay.PALETTE).
+const MSG_COLORS = {
+  blue: ["#3b6bff", "#12c597", "כחול"], navy: ["#0b1630", "#2c4a8c", "כהה"], green: ["#0ea47a", "#7dd3a8", "ירוק"],
+  red: ["#e5484d", "#ff9b4a", "אדום"], purple: ["#7c3aed", "#db6bf0", "סגול"], orange: ["#f97316", "#fbbf24", "כתום"],
+};
+
+/**
+ * A message to students: a regular notification, or full screen — covering the phone until the
+ * student taps its button (the app reports the tap back as the command's result "read").
+ */
 function messageModal(devices) {
   const classes = [...new Set(devices.map((d) => (d.className || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "he"));
   openModal("הודעה לתלמידים", `
-    <div class="field"><label>ההודעה</label><textarea class="input" name="text" rows="3" required placeholder="תופיע כהתראה בטלפון"></textarea></div>
+    <div class="grid-2" style="gap:10px">
+      <label class="check"><input type="radio" name="kind" value="fullscreen" checked><span><b>על כל המסך</b><small>נשארת על המסך עד שהתלמיד לוחץ על הכפתור</small></span></label>
+      <label class="check"><input type="radio" name="kind" value="message"><span><b>התראה רגילה</b><small>התראה בשורת ההתראות</small></span></label>
+    </div>
     ${classes.length ? `<div class="field"><label>למי</label><select class="input" name="cls"><option value="">כל ${devices.length} הטלפונים</option>
-      ${classes.map((c) => `<option>${esc(c)}</option>`).join("")}</select></div>` : ""}`,
+      ${classes.map((c) => `<option>${esc(c)}</option>`).join("")}</select></div>` : `<p class="muted" style="margin:0">יישלח ל-${devices.length} טלפונים</p>`}
+    <div class="msg-edit" style="display:grid;grid-template-columns:1fr 190px;gap:16px;align-items:start">
+      <div class="stack" style="gap:10px">
+        <div class="field fs-only"><label>כותרת</label><input class="input" name="title" maxlength="80" placeholder="למשל: תזכורת חשובה"></div>
+        <div class="field"><label>ההודעה</label><textarea class="input" name="text" rows="4" required maxlength="1200" placeholder="מה התלמידים יראו"></textarea></div>
+        <div class="field fs-only"><label>הכפתור</label><input class="input" name="button" maxlength="30" value="הבנתי"></div>
+        <div class="field fs-only"><label>צבע</label><div id="msgColors" style="display:flex;gap:8px;flex-wrap:wrap">
+          ${Object.entries(MSG_COLORS).map(([k, [a, b, n]], i) => `<label title="${n}" style="cursor:pointer"><input type="radio" name="color" value="${k}" ${i ? "" : "checked"} style="display:none">
+            <span style="display:block;width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,${a},${b});box-shadow:0 0 0 2px #fff,0 0 0 4px transparent" data-sw="${k}"></span></label>`).join("")}</div></div>
+      </div>
+      <div class="fs-only" id="msgPreview" style="border-radius:26px;padding:8px;background:#111;box-shadow:0 14px 30px -12px #0007">
+        <div id="msgScreen" style="border-radius:20px;height:330px;color:#fff;display:flex;flex-direction:column;align-items:center;padding:22px 14px 14px;text-align:center;overflow:hidden">
+          <span id="pvFrom" style="font-size:9.5px;font-weight:700;background:#ffffff33;padding:3px 9px;border-radius:99px"></span>
+          <span style="width:52px;height:52px;border-radius:50%;background:#ffffff2e;display:grid;place-items:center;font-size:24px;margin-top:16px">📢</span>
+          <b id="pvTitle" style="font-size:15px;margin-top:12px;line-height:1.3"></b>
+          <span id="pvText" style="font-size:11px;opacity:.95;margin-top:8px;line-height:1.45;flex:1;overflow:hidden;white-space:pre-wrap;word-break:break-word"></span>
+          <span id="pvBtn" style="background:#fff;border-radius:11px;width:100%;padding:9px 0;font-weight:800;font-size:12px;margin-top:10px"></span>
+        </div>
+      </div>
+    </div>`,
   async (f) => {
     const list = f.cls?.value ? devices.filter((d) => (d.className || "").trim() === f.cls.value) : devices;
-    await sendToDevices(list, "message", { text: f.text.value.trim() });
+    if (!list.length) throw new Error("אין טלפונים לשליחה");
+    const text = f.text.value.trim();
+    if (f.kind.value === "fullscreen") {
+      await sendToDevices(list, "fullscreen", { title: f.title.value.trim(), text, button: f.button.value.trim() || "הבנתי", color: f.color.value });
+    } else {
+      await sendToDevices(list, "message", { text });
+    }
     toast(`נשלח ל-${list.length} טלפונים`);
   }, "שליחה");
+
+  const f = $("modal").querySelector("form");
+  const draw = () => {
+    const fs = f.kind.value === "fullscreen";
+    f.querySelectorAll(".fs-only").forEach((el) => (el.style.display = fs ? "" : "none"));
+    f.querySelector(".msg-edit").style.gridTemplateColumns = fs ? "1fr 190px" : "1fr";
+    const [a, b] = MSG_COLORS[f.color.value] || MSG_COLORS.blue;
+    $("msgScreen").style.background = `linear-gradient(135deg,${a},${b})`;
+    $("pvFrom").textContent = "הודעה מ" + (S.inst?.name || "מוסד הלימודים");
+    $("pvTitle").textContent = f.title.value || "";
+    $("pvText").textContent = f.text.value || "כאן יופיע הטקסט של ההודעה";
+    $("pvBtn").textContent = f.button.value || "הבנתי";
+    $("pvBtn").style.color = a;
+    f.querySelectorAll("[data-sw]").forEach((s) => (s.style.boxShadow = `0 0 0 2px #fff,0 0 0 4px ${s.dataset.sw === f.color.value ? "#3b6bff" : "transparent"}`));
+  };
+  f.addEventListener("input", draw);
+  f.addEventListener("change", draw);
+  draw();
 }
 
 function moveClassModal(devices) {
