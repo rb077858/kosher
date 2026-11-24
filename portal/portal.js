@@ -2018,7 +2018,6 @@ function bindScopeBar(go2) {
 // The AI server is the Windows program (downloads/KosherGuard-AI-Setup.exe) running on a manager's
 // PC, signed in with that manager's account. It answers the phones' requests in
 // institutions/{i}/aiChecks/{site} and beats in institutions/{i}/ai/server. See firestore.rules.
-const AI_ALIVE_MS = 150 * 1000;
 const AI_STATUS = { allow: ["green", "אושר"], block: ["red", "נחסם"], pending: ["blue", "ממתין"], checking: ["blue", "נבדק עכשיו"], error: ["warn", "לא נבדק"] };
 
 async function renderAi() {
@@ -2028,10 +2027,10 @@ async function renderAi() {
   const editable = can("editPolicy");
   main(head("סינון חכם (AI)", `${esc(inst.name)} · בדיקת אתרים חדשים בבינה מלאכותית שרצה במחשב שלכם`) + `
     <div class="grid-2" style="margin-bottom:22px;align-items:stretch">
-      <div class="panel"><div class="panel-head"><h2>שרת ה-AI</h2><span id="aiSrvPill" class="pill">…</span></div>
-        <div class="panel-body stack" id="aiSrv" style="gap:8px">${loadingHtml}</div></div>
+      <div class="panel"><div class="panel-head"><h2>שרתי ה-AI</h2><span id="aiSrvPill" class="pill">…</span></div>
+        <div class="rows" id="aiSrv">${loadingHtml}</div></div>
       <div class="panel"><div class="panel-head"><h2>התקנה במחשב</h2></div><div class="panel-body stack" style="gap:12px">
-        <p class="muted" style="margin:0">מחשב Windows אחד שנשאר דלוק משמש שרת בדיקה לכל המוסדות שאתם מנהלים. ההתקנה מורידה מודל AI (כ-5GB) ופועלת מעצמה בכל הפעלה של המחשב.</p>
+        <p class="muted" style="margin:0">מחשב Windows שנשאר דלוק משמש שרת בדיקה לכל המוסדות שאתם מנהלים. אפשר להתקין על כמה מחשבים: כל בקשה עוברת לשרת הפנוי והמהיר ביותר, ואם אחד נכבה האחרים ממשיכים. ההתקנה מורידה מודל AI (כ-5GB) ופועלת מעצמה בכל הפעלה של המחשב.</p>
         <ol class="muted" style="margin:0;padding-inline-start:18px;line-height:1.9">
           <li>מורידים ומריצים את תוכנת ההתקנה</li><li>מתחברים עם החשבון שלכם (${esc(S.email)})</li><li>זהו. המצב יופיע כאן תוך דקה</li></ol>
         <a class="btn" href="../downloads/KosherGuard-AI-Setup.exe" download>${ic("download")}הורדת שרת ה-AI ל-Windows</a>
@@ -2041,6 +2040,10 @@ async function renderAi() {
       <label class="check"><input type="checkbox" id="aiStrict" ${settings.aiStrict ? "checked" : ""} ${editable ? "" : "disabled"}><span><b>סינון חכם פעיל בכל המוסד</b><small>כל אתר חדש נבדק לפני שהוא נפתח. אתר שנבדק נשמר ל-24 שעות לכל הטלפונים במוסד. אפשר להפעיל גם לכיתה או לתלמיד מ"מה חסום".</small></span></label>
       <div class="field"><label>הנחיות נוספות ל-AI (לא חובה)</label>
         <textarea class="input" id="aiPolicy" rows="2" placeholder="למשל: לחסום אתרי משחקים ורשתות חברתיות. לאשר אתרי לימוד." ${editable ? "" : "disabled"}>${esc(settings.aiPolicy || "")}</textarea></div>
+      <div class="field"><label>כשכל שרתי ה-AI כבויים</label><div class="grid-2" style="gap:10px">
+        <label class="check"><input type="radio" name="aiOffline" value="dns" ${settings.aiOffline !== "block" ? "checked" : ""} ${editable ? "" : "disabled"}><span><b>סינון רגיל</b><small>אתרים חדשים עוברים בסינון הרגיל עד שאחד השרתים חוזר</small></span></label>
+        <label class="check"><input type="radio" name="aiOffline" value="block" ${settings.aiOffline === "block" ? "checked" : ""} ${editable ? "" : "disabled"}><span><b>חסימת אתרים חדשים</b><small>אתר חדש מחכה עד ששרת יחזור ויבדוק אותו. אתרים שכבר נבדקו ממשיכים לעבוד</small></span></label>
+      </div></div>
       ${editable ? `<div><button class="btn sm" id="aiSave">שמירה</button></div>` : ""}
     </div></div>
     <div class="panel"><div class="panel-head"><h2>אתרים שנבדקו</h2>
@@ -2048,22 +2051,31 @@ async function renderAi() {
           <button class="btn sm ghost" data-add="allow">אישור ידני</button><button class="btn sm ghost" data-add="block">חסימה ידנית</button></div></div>
       <div class="rows" id="aiRows">${loadingHtml}</div></div>`);
 
-  const drawServer = (d) => {
-    const seen = ms(d?.lastSeen);
-    const alive = seen && Date.now() - seen < AI_ALIVE_MS;
-    $("aiSrvPill").className = "pill " + (alive ? "green" : seen ? "red" : "warn");
-    $("aiSrvPill").textContent = alive ? "פועל" : seen ? "כבוי" : "לא הותקן";
-    $("aiSrv").innerHTML = !seen ? emptyHtml("monitor", "עוד לא חובר מחשב", "התקינו את שרת ה-AI במחשב והתחברו עם החשבון הזה")
-      : `<div class="kv">
-         <div><small>מחשב</small>${esc(d.host || "—")}</div>
-         <div><small>נראה לאחרונה</small>${ago(d.lastSeen)}</div>
-         <div><small>מודל AI</small><span class="ltr">${esc(d.model || "—")}</span></div>
-         <div><small>בדיקות היום</small>${d.checksToday ?? 0}</div>
-         <div style="grid-column:1/-1"><small>מחובר בחשבון</small><span class="ltr">${esc(d.account || "—")}</span></div></div>`;
+  // Every PC running the server reports in aiServers/{id} (load every ~20s).
+  const SERVER_ALIVE_MS = 75 * 1000;
+  const drawServers = (list) => {
+    const alive = list.filter((d) => Date.now() - ms(d.lastSeen) < SERVER_ALIVE_MS);
+    $("aiSrvPill").className = "pill " + (alive.length ? "green" : list.length ? "red" : "warn");
+    $("aiSrvPill").textContent = alive.length ? `${alive.length} ${alive.length === 1 ? "פועל" : "פועלים"}` : list.length ? "כולם כבויים" : "לא הותקן";
+    $("aiSrv").innerHTML = !list.length ? emptyHtml("monitor", "עוד לא חובר מחשב", "התקינו את שרת ה-AI במחשב והתחברו עם החשבון שלכם")
+      : list.sort((a, b) => ms(b.lastSeen) - ms(a.lastSeen)).map((d) => {
+        const on = Date.now() - ms(d.lastSeen) < SERVER_ALIVE_MS;
+        return `<div class="row"><div class="dev-ic">${ic("monitor")}</div>
+          <div class="t"><b>${esc(d.host || "—")}</b><small><span class="ltr">${esc(d.model || "")}</span> · ${esc(d.account || "")}</small></div>
+          <div class="r">${on ? `<span class="muted">${d.busy ? `בודק ${d.busy}` : "פנוי"} · ~${Math.round(d.avgSeconds || 0)} שנ׳ לבדיקה · ${d.checksToday ?? 0} היום</span>` : `<span class="muted">${ago(d.lastSeen)}</span>`}
+            <span class="pill ${on ? "green" : "red"}">${on ? "פועל" : "כבוי"}</span>
+            ${on ? "" : `<button class="icon-btn" data-forget="${esc(d.id)}" title="הסרה מהרשימה">${ic("trash")}</button>`}</div></div>`;
+      }).join("");
   };
-  let server = null;
-  S.subs.push(onSnapshot(doc(db, "institutions", inst.id, "ai", "server"), (s) => { server = s.exists() ? s.data() : null; drawServer(server); }, fail));
-  const tick = setInterval(() => drawServer(server), 20000);
+  let servers = [];
+  S.subs.push(onSnapshot(collection(db, "institutions", inst.id, "aiServers"),
+    (s) => { servers = s.docs.map((d) => ({ id: d.id, ...d.data() })); drawServers(servers); }, fail));
+  $("aiSrv").onclick = async (e) => {
+    const b = e.target.closest("[data-forget]");
+    if (!b || !confirm("להסיר את המחשב מהרשימה? אם הוא יופעל שוב, הוא יחזור אליה מעצמו.")) return;
+    try { await deleteDoc(doc(db, "institutions", inst.id, "aiServers", b.dataset.forget)); } catch (err) { fail(err); }
+  };
+  const tick = setInterval(() => drawServers(servers), 20000);
   S.subs.push(() => clearInterval(tick));
 
   const col = collection(db, "institutions", inst.id, "aiChecks");
@@ -2104,7 +2116,8 @@ async function renderAi() {
     try {
       const fresh = await getDoc(doc(db, "institutions", inst.id, "public", "policy"));
       const data = fresh.exists() ? fresh.data() : { settings: DEFAULT_SETTINGS, telemetry: DEFAULT_TELEMETRY, version: 0 };
-      const next = { ...(data.settings || {}), aiStrict: $("aiStrict").checked, aiPolicy: $("aiPolicy").value.trim() };
+      const next = { ...(data.settings || {}), aiStrict: $("aiStrict").checked, aiPolicy: $("aiPolicy").value.trim(),
+        aiOffline: document.querySelector('input[name="aiOffline"]:checked')?.value === "block" ? "block" : "dns" };
       await setDoc(doc(db, "institutions", inst.id, "public", "policy"), {
         settings: next, version: (data.version || 0) + 1, updatedAt: serverTimestamp(), updatedBy: S.email,
       }, { mergeFields: ["settings", "version", "updatedAt", "updatedBy"] });
