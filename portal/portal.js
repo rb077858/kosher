@@ -87,10 +87,24 @@ function copy(text) {
   navigator.clipboard.writeText(text).then(() => toast("הועתק"), () => toast("ההעתקה נכשלה", true));
 }
 const ms = (v) => (v instanceof Timestamp ? v.toMillis() : typeof v === "number" ? v : v?.toMillis ? v.toMillis() : 0);
+
+// The real time. Timestamps here (lastSeen…) are Firebase's server time, but this computer's clock
+// may be off: one that ran 40 s fast showed every AI server as "off, seen 40 s ago". The site's
+// own Date header gives the offset once (±1 s, plenty for "seen N seconds ago").
+let CLOCK_OFFSET = 0;
+const now = () => Date.now() + CLOCK_OFFSET;
+(async () => {
+  try {
+    const t0 = Date.now();
+    const res = await fetch("build.json?clock=" + t0, { method: "HEAD", cache: "no-store" });
+    const server = Date.parse(res.headers.get("date") || "");
+    if (server) CLOCK_OFFSET = server + 500 - (t0 + Date.now()) / 2; // Date is whole seconds: +½s
+  } catch { /* keep the local clock */ }
+})();
 function ago(v) {
   const t = ms(v);
   if (!t) return "אף פעם";
-  const s = Math.max(0, (Date.now() - t) / 1000);
+  const s = Math.max(0, (now() - t) / 1000);
   if (s < 60) return "עכשיו";
   if (s < 3600) return `לפני ${Math.round(s / 60)} דק'`;
   if (s < 86400) return `לפני ${Math.round(s / 3600)} שע'`;
@@ -100,12 +114,12 @@ const fmtTime = (t) => new Date(t).toLocaleTimeString("he-IL", { hour: "2-digit"
 const fmtDateTime = (t) => (t ? new Date(ms(t)).toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short" }) : "—");
 const minutesToTime = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 const timeToMinutes = (v) => { const [h, m] = v.split(":").map(Number); return h * 60 + m; };
-const isOnline = (d) => Date.now() - ms(d.lastSeen) < ONLINE_WINDOW_MS;
-const isLive = (d) => ms(d.liveUntil) > Date.now();
+const isOnline = (d) => now() - ms(d.lastSeen) < ONLINE_WINDOW_MS;
+const isLive = (d) => ms(d.liveUntil) > now();
 /** The phone's last alert, unless it's old or a manager marked it as handled. */
 function openAlert(d) {
   const a = d.lastAlert;
-  return !!(a?.text && a.at && Date.now() - ms(a.at) < 24 * 3600e3 && ms(a.at) > ms(d.alertHandledAt));
+  return !!(a?.text && a.at && now() - ms(a.at) < 24 * 3600e3 && ms(a.at) > ms(d.alertHandledAt));
 }
 function deviceIssues(d) {
   const out = [];
@@ -126,7 +140,7 @@ function deviceIssues(d) {
     out.push(`${alert.text} (${ago(alert.at)})`);
   }
   // Silent for hours: off, no internet — or the app was removed / its data wiped.
-  if (d.lastSeen && Date.now() - ms(d.lastSeen) > SILENT_MS) out.push("לא מדווח " + ago(d.lastSeen).replace("לפני ", "") + " — ייתכן שהאפליקציה הוסרה");
+  if (d.lastSeen && now() - ms(d.lastSeen) > SILENT_MS) out.push("לא מדווח " + ago(d.lastSeen).replace("לפני ", "") + " — ייתכן שהאפליקציה הוסרה");
   return out;
 }
 const SILENT_MS = 2 * 60 * 60 * 1000;
@@ -172,7 +186,7 @@ async function reconnectDevice(d) {
   const token = randomToken(16);
   try {
     await setDoc(doc(db, "institutions", S.inst.id, "reconnect", d.id), {
-      token, slot: String(d.slot), expiresAt: Timestamp.fromMillis(Date.now() + 24 * 3600e3),
+      token, slot: String(d.slot), expiresAt: Timestamp.fromMillis(now() + 24 * 3600e3),
       createdAt: serverTimestamp(), createdBy: S.email,
     });
   } catch (e) { return fail(e); }
@@ -371,7 +385,7 @@ async function renderOverview() {
   try {
     const [instSnap, onlineSnap] = await Promise.all([
       getDocs(collection(db, "institutions")),
-      getCountFromServer(query(collection(db, "devices"), where("lastSeen", ">", Timestamp.fromMillis(Date.now() - ONLINE_WINDOW_MS)))),
+      getCountFromServer(query(collection(db, "devices"), where("lastSeen", ">", Timestamp.fromMillis(now() - ONLINE_WINDOW_MS)))),
     ]);
     const insts = instSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
     const counts = await Promise.all(insts.map((i) => slotCount(i.id)));
@@ -910,7 +924,7 @@ function buildDrawer(d) {
   };
 
   if (can("liveView")) {
-    $("dLiveOn").onclick = () => updateDoc(doc(db, "devices", d.id), { liveUntil: Timestamp.fromMillis(Date.now() + 10 * 60 * 1000) }).then(() => toast("צפייה חיה הופעלה"), fail);
+    $("dLiveOn").onclick = () => updateDoc(doc(db, "devices", d.id), { liveUntil: Timestamp.fromMillis(now() + 10 * 60 * 1000) }).then(() => toast("צפייה חיה הופעלה"), fail);
     $("dLiveOff").onclick = () => updateDoc(doc(db, "devices", d.id), { liveUntil: Timestamp.fromMillis(0) }).then(() => toast("צפייה חיה הופסקה"), fail);
   }
 
@@ -2054,9 +2068,9 @@ async function renderAi() {
   // Every PC running the server reports in aiServers/{id} every 10s, and marks itself off
   // (online: false) when it stops properly. Silent for 30s (switched off, no network) = off.
   const SERVER_ALIVE_MS = 30 * 1000;
-  const isOn = (d) => d.online !== false && Date.now() - ms(d.lastSeen) < SERVER_ALIVE_MS;
+  const isOn = (d) => d.online !== false && now() - ms(d.lastSeen) < SERVER_ALIVE_MS;
   const seenAgo = (d) => {
-    const s = Math.max(0, Math.round((Date.now() - ms(d.lastSeen)) / 1000));
+    const s = Math.max(0, Math.round((now() - ms(d.lastSeen)) / 1000));
     return s < 60 ? `נראה לפני ${s} שנ׳` : ago(d.lastSeen);
   };
   const drawServers = (list) => {
