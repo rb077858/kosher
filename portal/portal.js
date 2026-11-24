@@ -2163,9 +2163,13 @@ async function renderAi() {
   S.subs.push(onSnapshot(query(col, orderBy("requestedAt", "desc"), limit(150)), (snap) => {
     const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     $("aiRows").innerHTML = rows.length ? rows.map((r) => {
-      const [cls, label] = AI_STATUS[r.status] || ["", r.status];
+      // Waiting for minutes: no server picked it up. Say so, rather than "pending" forever.
+      const stale = (r.status === "pending" || r.status === "checking") && now() - ms(r.requestedAt) > 3 * 60e3;
+      const [cls, label] = stale ? ["warn", "לא נבדק"] : (AI_STATUS[r.status] || ["", r.status]);
+      const why = stale ? "אף שרת AI לא היה זמין. ייבדק כשתלמיד ייכנס שוב ושרת יפעל"
+        : r.reason || (r.status === "pending" ? "ממתין לשרת" : "");
       return `<div class="row"><div class="dev-ic">${ic(r.status === "block" ? "lock" : r.status === "allow" ? "shield" : "spark")}</div>
-        <div class="t"><b class="ltr">${esc(r.id)}</b><small>${esc(r.reason || (r.status === "pending" ? "ממתין לשרת" : ""))}${r.source === "manual" ? " · ידני" : ""}</small></div>
+        <div class="t"><b class="ltr">${esc(r.id)}</b><small>${esc(why)}${r.source === "manual" ? " · ידני" : ""}</small></div>
         <div class="r">${r.category ? `<span class="pill">${esc(r.category)}</span>` : ""}${typeof r.risk === "number" && r.status !== "pending" ? `<span class="muted">סיכון ${r.risk}</span>` : ""}
           <span class="pill ${cls}">${label}</span><span class="muted">${ago(r.checkedAt || r.requestedAt)}</span>
           <button class="icon-btn" data-ai="allow" data-d="${esc(r.id)}" title="אישור">${ic("unlock")}</button>
