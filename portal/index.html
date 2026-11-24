@@ -351,6 +351,12 @@
 <dialog class="palette" id="palette"></dialog>
 <div class="toast" id="toast"></div>
 
-<script type="module" src="portal.js"></script>
+<script type="module">
+  // The site lets browsers keep files for 4 hours, so a new portal.js could stay hidden that long.
+  // build.json is always fetched fresh and names the current build, which loads a fresh portal.js.
+  let v = "";
+  try { v = (await (await fetch("build.json?t=" + Date.now(), { cache: "no-store" })).json()).v; } catch {}
+  await import("./portal.js?v=" + encodeURIComponent(v || Date.now()));
+</script>
 </body>
 </html>

@@ -378,7 +378,7 @@ async function renderOverview() {
     const total = counts.reduce((a, b) => a + b, 0);
     const capacity = insts.reduce((a, i) => a + (i.maxStudents || 0), 0);
     main(`
-      <div class="page-head"><div><h1>שלום${S.user.displayName ? ", " + esc(S.user.displayName.split(" ")[0]) : ""}</h1>
+      <div class="page-head"><div><h1>שלום${S.user.displayName ? ", " + esc(greetName(S.user.displayName)) : ""}</h1>
         <p>תמונת מצב של כל המוסדות והמכשירים</p></div>
         <div class="actions"><button class="btn" id="btnNewInst">${ic("plus")}מוסד חדש</button></div></div>
       <div class="grid-4" style="margin-bottom:22px">
@@ -614,6 +614,13 @@ const TAB_RENDER = {
   staff: renderStaff,
   info: renderInfo,
 };
+
+// The first name for "שלום, …" — with a title in front (ר' יוסי, הרב כהן) keep the name after it too.
+const TITLES = new Set(["ר'", "ר׳", "הרב", "רב", "מר", "גב'", "גב׳", "גברת", 'ד"ר', "ד״ר", "פרופ'", "הרבנית"]);
+function greetName(full) {
+  const w = String(full || "").trim().split(/\s+/);
+  return TITLES.has(w[0]) && w[1] ? `${w[0]} ${w[1]}` : w[0];
+}
 
 function head(title, sub, actions = "") {
   return `<div class="page-head"><div><h1>${esc(title)}</h1>${sub ? `<p>${sub}</p>` : ""}</div><div class="actions">${actions}</div></div>`;
@@ -1041,7 +1048,8 @@ async function removeDevice(d) {
 // The first thing a manager sees: what needs attention, and the things done most often.
 function renderHome() {
   const inst = S.inst;
-  main(head(`שלום${S.user.displayName ? ", " + esc(S.user.displayName.split(" ")[0]) : ""}`, esc(inst.name)) + `
+  // head() escapes the title itself: escaping the name here too turned ' into &#39; on screen.
+  main(head(`שלום${S.user.displayName ? ", " + greetName(S.user.displayName) : ""}`, esc(inst.name)) + `
     <div class="grid-4" style="margin-bottom:22px" id="hStats"></div>
     <div id="hSteps"></div>
     <div class="home-grid">
