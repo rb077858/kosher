@@ -164,6 +164,13 @@ function localChangesText(d) {
  * The same physical phone (same androidId — it survives uninstalling and wiping the app)
  * registered more than once: every record but the newest belongs to the wiped installation.
  */
+// A phone turned into a demo phone from the app's developer menu (it reports demo: true): shown
+// under fixed demo details, never the real ones, and marked "מכשיר דמו". The phone can't go back
+// on its own: only removing it from the institution and registering it again ends it.
+const DEMO_DEVICE = { studentName: "מכשיר דמו", className: "דמו", manufacturer: "Demo", model: "Device" };
+const demoView = (d) => (d.demo === true ? { ...d, ...DEMO_DEVICE } : d);
+const demoPill = (d) => (d.demo === true ? '<span class="pill blue">מכשיר דמו</span>' : "");
+
 function markReRegistered(devices) {
   const byPhone = {};
   devices.forEach((d) => { if (d.androidId) (byPhone[d.androidId] ||= []).push(d); });
@@ -196,7 +203,7 @@ async function reconnectDevice(d) {
     settings: {},
     cloud: {
       p: FIREBASE_CONFIG.projectId, i: S.inst.id, n: S.inst.name,
-      r: { d: d.id, k: token, s: String(d.slot), l: d.label, sn: d.studentName || "", c: d.className || "", pid: d.policyId || d.id },
+      r: { d: d.id, k: token, s: String(d.slot), l: d.label, sn: d.demo === true ? "" : d.studentName || "", c: d.demo === true ? "" : d.className || "", pid: d.policyId || d.id },
     },
   });
   openModal(`חיבור מחדש · ${d.studentName || d.label}`, `
@@ -599,7 +606,7 @@ function renderInstitution(instId, tab, arg) {
   $("btnPalette").hidden = false;
   // Kept for every tab: the overview, the devices list and the search all read S.devices.
   S.subs.push(onSnapshot(query(collection(db, "devices"), where("instId", "==", instId)), (snap) => {
-    S.devices = markReRegistered(snap.docs.map((d) => ({ id: d.id, ...d.data() }))).sort((a, b) => ms(b.lastSeen) - ms(a.lastSeen));
+    S.devices = markReRegistered(snap.docs.map((d) => demoView({ id: d.id, ...d.data() }))).sort((a, b) => ms(b.lastSeen) - ms(a.lastSeen));
     S.onDevices?.();
   }, fail));
   S.subs.push(onSnapshot(doc(db, "institutions", instId), (snap) => {
@@ -645,7 +652,8 @@ function renderDevices(preset) {
   const inst = S.inst;
   main(head("תלמידים ומכשירים", `${esc(inst.name)} · מצב כל מכשירי התלמידים בזמן אמת`,
     `${can("remoteCommands") ? `<button class="btn ghost" id="btnRefreshAll">${ic("sync")}רענון</button>
-      <button class="btn ghost" id="btnMessageAll">${ic("msg")}הודעה</button>` : ""}
+      <button class="btn ghost" id="btnMessageAll">${ic("msg")}הודעה</button>
+      <button class="btn ghost" id="btnLockAll">${ic("lock")}נעילת מכשירים</button>` : ""}
      ${can("editPolicy") ? `<button class="btn ghost" id="btnPushUpdate" disabled>${ic("download")}עדכון אפליקציה</button>` : ""}
      <a class="btn" href="#/inst/${inst.id}/enroll">${ic("plus")}רישום מכשיר</a>`) + `
     <div class="grid-4" style="margin-bottom:22px" id="devStats"></div>
@@ -658,7 +666,9 @@ function renderDevices(preset) {
     <div class="save-bar" id="devBulk" hidden><span id="devBulkN"></span><span class="row-actions">
       ${can("remoteCommands") ? `<button class="btn sm ghost light" data-bulk="message">${ic("msg")}הודעה</button>
       <button class="btn sm ghost light" data-bulk="syncPolicy">${ic("sync")}סנכרון</button>
-      <button class="btn sm ghost light" data-bulk="lockNow">${ic("lock")}נעילה</button>` : ""}
+      <button class="btn sm ghost light" data-bulk="deviceLock">${ic("lock")}נעילת המכשיר</button>
+      <button class="btn sm ghost light" data-bulk="deviceUnlock">${ic("unlock")}פתיחת המכשיר</button>
+      <button class="btn sm ghost light" data-bulk="lockNow">${ic("lock")}נעילת הגדרות</button>` : ""}
       <button class="btn sm ghost light" data-bulk="class">${ic("users")}העברה לכיתה</button>
       <button class="btn sm ghost light" data-bulk="clear">ביטול</button></span></div>`);
   S.selected = new Set();
@@ -676,7 +686,8 @@ function renderDevices(preset) {
     if (what === "clear") { S.selected.clear(); return draw(); }
     if (what === "message") return messageModal(list);
     if (what === "class") return moveClassModal(list);
-    if (what === "lockNow" && !confirm(`לנעול ${list.length} טלפונים?`)) return;
+    if (what === "deviceLock" || what === "deviceUnlock") return lockModal(list, what);
+    if (what === "lockNow" && !confirm(`לנעול את ההגדרות ב-${list.length} טלפונים?`)) return;
     try { await sendToDevices(list, what, {}); toast(`נשלח ל-${list.length} טלפונים`); } catch (err) { fail(err); }
   };
   S.onDevices = draw;
@@ -720,7 +731,7 @@ function drawDevices() {
       <div class="dev-ic">${ic("phone")}<span class="st ${isLive(d) ? "live" : isOnline(d) ? "on" : ""}"></span></div>
       <div class="t"><b>${esc(d.studentName || d.label || "ללא שם")}</b>
         <small>${esc([d.className, [d.manufacturer, d.model].filter(Boolean).join(" ")].filter(Boolean).join(" · "))} · ${isOnline(d) ? (d.currentAppName ? "עכשיו ב" + esc(d.currentAppName) : "מחובר") : ago(d.lastSeen)}</small></div>
-      <div class="r">${iss.length ? `<span class="pill red" title="${esc(iss.join(", "))}">${esc(iss[0])}${iss.length > 1 ? " +" + (iss.length - 1) : ""}</span>` : ""}
+      <div class="r">${demoPill(d)}${d.manualLock === true ? `<span class="pill red">${ic("lock", 'style="width:13px;height:13px"')}נעול</span>` : ""}${iss.length ? `<span class="pill red" title="${esc(iss.join(", "))}">${esc(iss[0])}${iss.length > 1 ? " +" + (iss.length - 1) : ""}</span>` : ""}
         ${isOutdated(d) ? '<span class="pill warn">גרסה ישנה</span>' : ""}
         ${d.usageToday ? `<span class="pill" title="זמן מסך היום">${ic("clock", 'style="width:13px;height:13px"')}${fmtMinutes(d.usageToday.minutes || 0)}</span>` : ""}
         ${d.battery != null ? `<span class="pill">${d.charging ? "⚡" : ""}${d.battery}%</span>` : ""}</div></div>`;
@@ -739,6 +750,8 @@ function drawDevices() {
   if (refresh) refresh.onclick = () => refreshAll(refresh);
   const msgAll = $("btnMessageAll");
   if (msgAll) msgAll.onclick = () => messageModal(S.devices);
+  const lockAll = $("btnLockAll");
+  if (lockAll) lockAll.onclick = () => lockModal(S.devices, "deviceLock");
 
   const upd = $("btnPushUpdate");
   if (upd) {
@@ -842,7 +855,7 @@ function openDevice(id) {
   let built = false;
   S.drawerSubs.push(onSnapshot(doc(db, "devices", id), (snap) => {
     if (!snap.exists()) { closeDrawer(); return; }
-    const d = { id, ...snap.data() };
+    const d = demoView({ id, ...snap.data() });
     if (!built) { buildDrawer(d); built = true; }
     updateDrawer(d);
   }, fail));
@@ -868,7 +881,11 @@ function buildDrawer(d) {
           <button class="btn sm ghost" data-cmd="ping">${ic("bolt")}דיווח עכשיו</button>
           <button class="btn sm ghost" data-cmd="syncPolicy">${ic("sync")}סנכרון מדיניות</button>
           <button class="btn sm ghost" data-cmd="adminUnlock">${ic("unlock")}פתיחת הגדרות ל-15 דק'</button>
-          <button class="btn sm ghost" data-cmd="lockNow">${ic("lock")}נעילה מיידית</button></div>
+          <button class="btn sm ghost" data-cmd="lockNow">${ic("lock")}נעילת הגדרות</button></div>
+        <div class="row-actions">
+          <button class="btn sm danger" data-cmd="deviceLock">${ic("lock")}נעילת המכשיר</button>
+          <button class="btn sm ghost" data-cmd="deviceUnlock">${ic("unlock")}פתיחת המכשיר</button>
+          <button class="btn sm ghost" type="button" id="dFsMsg">${ic("msg")}הודעה על כל המסך</button></div>
         <form id="dUnlockApp" class="form-grid" style="align-items:end">
           <div class="field"><label>שחרור אפליקציה</label><input class="input ltr" name="pkg" list="dPkgList" placeholder="com.whatsapp" required></div>
           <div class="field"><label>לכמה זמן</label><select class="input" name="minutes"><option>15</option><option>30</option><option>60</option><option value="180">3 שעות</option></select></div>
@@ -905,7 +922,9 @@ function buildDrawer(d) {
   f.onsubmit = async (e) => {
     e.preventDefault();
     try {
-      await updateDoc(doc(db, "devices", d.id), { studentName: f.studentName.value.trim(), className: f.className.value.trim(), notes: f.notes.value.trim() });
+      // A demo phone (see lockDemoForm) keeps its fixed demo details: only the notes are saved.
+      await updateDoc(doc(db, "devices", d.id), f.dataset.demo ? { notes: f.notes.value.trim() }
+        : { studentName: f.studentName.value.trim(), className: f.className.value.trim(), notes: f.notes.value.trim() });
       toast("נשמר");
     } catch (err) { fail(err); }
   };
@@ -935,8 +954,12 @@ function buildDrawer(d) {
     const send = (type, payload = {}) => addDoc(collection(db, "devices", d.id, "commands"), {
       type, payload, status: "pending", createdAt: serverTimestamp(), createdBy: S.email,
     }).then(() => toast("הפקודה נשלחה"), fail);
-    document.querySelectorAll("[data-cmd]").forEach((b) => (b.onclick = () =>
-      send(b.dataset.cmd, b.dataset.cmd === "adminUnlock" ? { minutes: 15 } : {})));
+    document.querySelectorAll("[data-cmd]").forEach((b) => (b.onclick = () => {
+      const c = b.dataset.cmd;
+      if (c === "deviceLock" || c === "deviceUnlock") return lockModal([d], c);
+      send(c, c === "adminUnlock" ? { minutes: 15 } : {});
+    }));
+    $("dFsMsg").onclick = () => messageModal([d]);
     $("dUnlockApp").onsubmit = (e) => {
       e.preventDefault();
       const fm = e.target;
@@ -945,11 +968,13 @@ function buildDrawer(d) {
     };
     $("dMsg").onsubmit = (e) => { e.preventDefault(); send("message", { text: e.target.text.value.trim() }); e.target.reset(); };
     S.drawerSubs.push(onSnapshot(query(collection(db, "devices", d.id, "commands"), orderBy("createdAt", "desc"), limit(8)), (snap) => {
-      const names = { ping: "דיווח עכשיו", syncPolicy: "סנכרון מדיניות", adminUnlock: "פתיחת הגדרות", lockNow: "נעילה מיידית", unlockApp: "שחרור אפליקציה", message: "הודעה" };
+      const names = { ping: "דיווח עכשיו", syncPolicy: "סנכרון מדיניות", adminUnlock: "פתיחת הגדרות", lockNow: "נעילת הגדרות", unlockApp: "שחרור אפליקציה", message: "הודעה",
+        fullscreen: "הודעה על כל המסך", deviceLock: "נעילת המכשיר", deviceUnlock: "פתיחת המכשיר" };
       const st = { pending: ["ממתין", "warn"], done: ["בוצע", "green"], failed: ["נכשל", "red"] };
       $("dCmds").innerHTML = snap.docs.map((c) => {
         const x = c.data(), [label, cls] = st[x.status] || [x.status, ""];
-        const extra = x.type === "unlockApp" ? ` · ${appLabel(x.payload?.pkg)}` : x.type === "message" ? ` · ${x.payload?.text}` : "";
+        const extra = x.type === "unlockApp" ? ` · ${appLabel(x.payload?.pkg)}` : x.type === "message" ? ` · ${x.payload?.text}`
+          : x.type === "fullscreen" ? ` · ${x.payload?.title || x.payload?.text || ""}${x.result === "read" ? " (נקראה)" : ""}` : "";
         return `<div style="grid-template-columns:52px 1fr auto"><time>${ms(x.createdAt) ? fmtTime(ms(x.createdAt)) : "…"}</time>
           <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(names[x.type] || x.type)}${esc(extra)}</span><span class="pill ${cls}">${label}</span></div>`;
       }).join("") || '<span class="muted small">עדיין לא נשלחו פקודות</span>';
@@ -983,7 +1008,21 @@ function buildDrawer(d) {
   }
 }
 
+/**
+ * A phone that became a demo phone (even while its drawer is open): its name and class show the
+ * fixed demo details and can't be edited any more. One way only, like on the phone.
+ */
+function lockDemoForm(d) {
+  const f = $("dEdit");
+  if (!f || d.demo !== true || f.dataset.demo) return;
+  f.dataset.demo = "1";
+  f.studentName.value = d.studentName; f.className.value = d.className;
+  f.studentName.disabled = f.className.disabled = true;
+  f.notes.insertAdjacentHTML("afterend", '<small class="muted">מכשיר דמו: השם והכיתה קבועים. כדי להחזיר אותו למכשיר רגיל צריך להסיר אותו ממוסד הלימודים ולרשום מחדש.</small>');
+}
+
 function updateDrawer(d) {
+  lockDemoForm(d);
   $("dTitle").textContent = d.studentName || d.label || "מכשיר";
   $("dSt").className = "st " + (isLive(d) ? "live" : isOnline(d) ? "on" : "");
   const p = d.protection || {};
@@ -991,7 +1030,8 @@ function updateDrawer(d) {
   const iss = deviceIssues(d);
   // The local changes and the phone's alert get boxes of their own below, each with its button.
   const others = iss.filter((x) => !x.startsWith("שונה ידנית") && !(openAlert(d) && x.startsWith(d.lastAlert.text)));
-  $("dIssues").innerHTML = (others.length ? `<div class="callout danger">${ic("shield")}<div><b>בעיות הגנה:</b> ${esc(others.join(" · "))}</div></div>` : "") +
+  $("dIssues").innerHTML = (d.manualLock === true ? `<div class="callout danger" style="margin-bottom:10px">${ic("lock")}<div style="flex:1"><b>המכשיר נעול ידנית.</b>
+      <span class="small muted">הוא יישאר נעול עד שתפתחו אותו ("פתיחת המכשיר" בפקודות מרחוק).</span></div></div>` : "") + (others.length ? `<div class="callout danger">${ic("shield")}<div><b>בעיות הגנה:</b> ${esc(others.join(" · "))}</div></div>` : "") +
     (d.localChanges?.length ? `<div class="callout warn">${ic("sliders")}<div style="flex:1"><b>הגדרות ששונו ידנית בטלפון:</b> ${esc(localChangesText(d))}.
       <br><span class="small muted">הטלפון לא פועל כרגע לפי מדיניות מוסד הלימודים בנושאים האלה.</span>
       ${can("remoteCommands") ? `<div style="margin-top:10px"><button class="btn sm" id="dRestorePolicy">${ic("sync")}החזרה למדיניות מוסד הלימודים</button></div>` : ""}</div></div>` : "") +
@@ -1155,19 +1195,25 @@ const MSG_COLORS = {
  * student taps its button (the app reports the tap back as the command's result "read").
  */
 function messageModal(devices) {
-  const classes = [...new Set(devices.map((d) => (d.className || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "he"));
-  openModal("הודעה לתלמידים", `
+  const one = devices.length === 1 ? devices[0] : null;
+  const oneName = one ? esc(one.studentName || one.label || "התלמיד") : "";
+  const classes = one ? [] : [...new Set(devices.map((d) => (d.className || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "he"));
+  openModal(one ? `הודעה ל${one.studentName || one.label || "תלמיד"}` : "הודעה לתלמידים", `
     <div class="grid-2" style="gap:10px">
       <label class="check"><input type="radio" name="kind" value="fullscreen" checked><span><b>על כל המסך</b><small>נשארת על המסך עד שהתלמיד לוחץ על הכפתור</small></span></label>
       <label class="check"><input type="radio" name="kind" value="message"><span><b>התראה רגילה</b><small>התראה בשורת ההתראות</small></span></label>
     </div>
     ${classes.length ? `<div class="field"><label>למי</label><select class="input" name="cls"><option value="">כל ${devices.length} הטלפונים</option>
-      ${classes.map((c) => `<option>${esc(c)}</option>`).join("")}</select></div>` : `<p class="muted" style="margin:0">יישלח ל-${devices.length} טלפונים</p>`}
+      ${classes.map((c) => `<option>${esc(c)}</option>`).join("")}</select></div>` : `<p class="muted" style="margin:0">${one ? `יישלח רק לטלפון של ${oneName}` : `יישלח ל-${devices.length} טלפונים`}</p>`}
     <div class="msg-edit" style="display:grid;grid-template-columns:1fr 190px;gap:16px;align-items:start">
       <div class="stack" style="gap:10px">
         <div class="field fs-only"><label>כותרת</label><input class="input" name="title" maxlength="80" placeholder="למשל: תזכורת חשובה"></div>
         <div class="field"><label>ההודעה</label><textarea class="input" name="text" rows="4" required maxlength="1200" placeholder="מה התלמידים יראו"></textarea></div>
-        <div class="field fs-only"><label>הכפתור</label><input class="input" name="button" maxlength="30" value="הבנתי"></div>
+        <div class="grid-2 fs-only" style="gap:10px">
+          <div class="field"><label>הכפתור</label><input class="input" name="button" maxlength="30" value="הבנתי"></div>
+          <div class="field"><label>אפשר ללחוץ אחרי</label><select class="input" name="wait">
+            <option value="0">מיד</option><option value="3">3 שניות</option><option value="5">5 שניות</option><option value="10">10 שניות</option>
+            <option value="15">15 שניות</option><option value="30">30 שניות</option><option value="60">דקה</option></select></div></div>
         <div class="field fs-only"><label>צבע</label><div id="msgColors" style="display:flex;gap:8px;flex-wrap:wrap">
           ${Object.entries(MSG_COLORS).map(([k, [a, b, n]], i) => `<label title="${n}" style="cursor:pointer"><input type="radio" name="color" value="${k}" ${i ? "" : "checked"} style="display:none">
             <span style="display:block;width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,${a},${b});box-shadow:0 0 0 2px #fff,0 0 0 4px transparent" data-sw="${k}"></span></label>`).join("")}</div></div>
@@ -1187,11 +1233,12 @@ function messageModal(devices) {
     if (!list.length) throw new Error("אין טלפונים לשליחה");
     const text = f.text.value.trim();
     if (f.kind.value === "fullscreen") {
-      await sendToDevices(list, "fullscreen", { title: f.title.value.trim(), text, button: f.button.value.trim() || "הבנתי", color: f.color.value });
+      await sendToDevices(list, "fullscreen", { title: f.title.value.trim(), text, button: f.button.value.trim() || "הבנתי", color: f.color.value,
+        waitSeconds: parseInt(f.wait.value, 10) || 0 });
     } else {
       await sendToDevices(list, "message", { text });
     }
-    toast(`נשלח ל-${list.length} טלפונים`);
+    toast(one ? `נשלח ל${one.studentName || one.label || "תלמיד"}` : `נשלח ל-${list.length} טלפונים`);
   }, "שליחה");
 
   const f = $("modal").querySelector("form");
@@ -1204,11 +1251,44 @@ function messageModal(devices) {
     $("pvFrom").textContent = "הודעה מ" + (S.inst?.name || "מוסד הלימודים");
     $("pvTitle").textContent = f.title.value || "";
     $("pvText").textContent = f.text.value || "כאן יופיע הטקסט של ההודעה";
-    $("pvBtn").textContent = f.button.value || "הבנתי";
+    const wait = parseInt(f.wait.value, 10) || 0;
+    $("pvBtn").textContent = (f.button.value || "הבנתי") + (wait ? ` (${wait})` : "");
+    $("pvBtn").style.opacity = wait ? ".6" : "1";
     $("pvBtn").style.color = a;
     f.querySelectorAll("[data-sw]").forEach((s) => (s.style.boxShadow = `0 0 0 2px #fff,0 0 0 4px ${s.dataset.sw === f.color.value ? "#3b6bff" : "transparent"}`));
   };
   f.addEventListener("input", draw);
+  f.addEventListener("change", draw);
+  draw();
+}
+
+/**
+ * "נעילת המכשיר" / "פתיחת המכשיר": the whole phone locked by hand (like Family Link), for one
+ * student, the chosen students, a class or everyone, until it's opened again. A deviceLock or
+ * deviceUnlock command each; `at` lets the phone ignore an older one that arrives late.
+ */
+function lockModal(devices, action) {
+  const one = devices.length === 1 ? devices[0] : null;
+  const who = one ? esc(one.studentName || one.label || "התלמיד") : "";
+  const classes = one ? [] : [...new Set(devices.map((d) => (d.className || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "he"));
+  openModal(one ? `נעילה ופתיחה · ${one.studentName || one.label || "תלמיד"}` : "נעילת מכשירים", `
+    <div class="grid-2" style="gap:10px">
+      <label class="check"><input type="radio" name="act" value="deviceLock" ${action !== "deviceUnlock" ? "checked" : ""}><span><b>נעילת המכשיר</b><small>כל הטלפון נעול, חוץ משיחות טלפון, עד שתפתחו אותו</small></span></label>
+      <label class="check"><input type="radio" name="act" value="deviceUnlock" ${action === "deviceUnlock" ? "checked" : ""}><span><b>פתיחת המכשיר</b><small>הטלפון חוזר לפעול כרגיל</small></span></label>
+    </div>
+    ${one ? `<p class="muted" style="margin:0">רק הטלפון של ${who}</p>` : classes.length ? `<div class="field"><label>למי</label><select class="input" name="cls"><option value="">כל ${devices.length} הטלפונים</option>
+      ${classes.map((c) => `<option>${esc(c)}</option>`).join("")}</select></div>` : `<p class="muted" style="margin:0">${devices.length} טלפונים</p>`}
+    <div class="field lock-only"><label>הודעה במסך הנעילה (לא חובה)</label><input class="input" name="text" maxlength="300" placeholder="למשל: הטלפון נעול עד סוף השיעור"></div>
+    <p class="muted small" style="margin:0">טלפון שלא מחובר לאינטרנט יינעל או ייפתח כשיתחבר. קוד שחרור של מנהל (בלי אינטרנט) פותח אותו זמנית.</p>`,
+  async (f) => {
+    const list = f.cls?.value ? devices.filter((d) => (d.className || "").trim() === f.cls.value) : devices;
+    if (!list.length) throw new Error("אין טלפונים");
+    const lock = f.act.value === "deviceLock";
+    await sendToDevices(list, f.act.value, lock ? { at: Date.now(), text: f.text.value.trim() } : { at: Date.now() });
+    toast(`${lock ? "נשלחה נעילה" : "נשלחה פתיחה"} ${one ? "ל" + (one.studentName || one.label || "תלמיד") : `ל-${list.length} טלפונים`}`);
+  }, "שליחה");
+  const f = $("modal").querySelector("form");
+  const draw = () => { f.querySelector(".lock-only").style.display = f.act.value === "deviceLock" ? "" : "none"; };
   f.addEventListener("change", draw);
   draw();
 }
@@ -2433,7 +2513,7 @@ async function renderCodes() {
   main(loadingHtml);
   const [keys, devSnap] = await Promise.all([getKeys(), getDocs(query(collection(db, "devices"), where("instId", "==", S.inst.id)))]);
   if (!keys) return;
-  const devices = devSnap.docs.map((d) => d.data()).filter((d) => d.label).sort((a, b) => (a.studentName || a.label || "").localeCompare(b.studentName || b.label || "", "he"));
+  const devices = devSnap.docs.map((d) => demoView(d.data())).filter((d) => d.label).sort((a, b) => (a.studentName || a.label || "").localeCompare(b.studentName || b.label || "", "he"));
   main(head("קודי שחרור", "עובד גם כשהטלפון לא מחובר לאינטרנט") + `
     <div class="grid-2" style="align-items:start">
       <div class="panel"><div class="panel-body stack">
