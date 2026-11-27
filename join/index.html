@@ -47,8 +47,8 @@
 <div class="join-hero">
   <div class="wrap">
     <div class="seal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
-    <h1>רישום הטלפון לסינון</h1>
-    <p>מוסד הלימודים הזמין אתכם להתקין את מסנן כשר. זה לוקח כמה דקות.</p>
+    <h1 id="heroTitle">רישום הטלפון לסינון</h1>
+    <p id="heroText">מוסד הלימודים הזמין אתכם להתקין את מסנן כשר. זה לוקח כמה דקות.</p>
   </div>
 </div>
 
@@ -71,8 +71,8 @@
     </div>
 
     <div class="row" style="margin-top:22px"><span class="num">2</span><div>
-      <b>ממשיכים לרישום באפליקציה</b>
-      <p class="muted">אחרי ההתקנה לוחצים כאן. האפליקציה נפתחת ומבקשת רק שם וכיתה.</p>
+      <b id="openTitle">ממשיכים לרישום באפליקציה</b>
+      <p class="muted" id="openNote">אחרי ההתקנה לוחצים כאן. האפליקציה נפתחת ומבקשת רק שם וכיתה.</p>
     </div></div>
     <div class="actions">
       <a class="btn lg" id="open" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>פתיחה באפליקציה</a>
@@ -87,8 +87,8 @@
   </div>
 
   <div class="card" id="share" hidden>
-    <h2>קישור הרישום</h2>
-    <p class="muted">אותו קישור לכל התלמידים של מוסד הלימודים. אפשר להעביר אותו הלאה.</p>
+    <h2 id="shareTitle">קישור הרישום</h2>
+    <p class="muted" id="shareText">אותו קישור לכל התלמידים של מוסד הלימודים. אפשר להעביר אותו הלאה.</p>
     <div class="linkbox"><input class="input" id="link" readonly><button class="btn" id="copy" type="button">העתקה</button></div>
   </div>
 
@@ -106,10 +106,28 @@
   const $ = (id) => document.getElementById(id);
   const toast = (msg) => { const el = $("toast"); el.textContent = msg; el.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("show"), 2400); };
 
-  if (!/^[A-Za-z0-9_-]{2,40}$/.test(i) || !/^[A-Za-z0-9]{8,64}$/.test(t)) { $("bad").hidden = false; return; }
+  // One student's "חיבור מחדש" link (portal → the student → "חיבור מחדש"): ?i=&re=1#r=&k=&s=&l=&p=&n=&c=.
+  // Its details stay after the "#", so they never reach the server; the app reads them from the link.
+  const re = q.get("re") === "1" ? new URLSearchParams(location.hash.slice(1)) : null;
+  const reOk = re && /^[A-Za-z0-9]{8,64}$/.test(re.get("r") || "") && /^[A-Za-z0-9]{8,64}$/.test(re.get("k") || "") && /^[0-9]{1,6}$/.test(re.get("s") || "");
+  if (!/^[A-Za-z0-9_-]{2,40}$/.test(i) || (re ? !reOk : !/^[A-Za-z0-9]{8,64}$/.test(t))) { $("bad").hidden = false; return; }
 
-  // The canonical link: the same one the portal shows, whatever extra the browser added.
-  const link = `${location.origin}${location.pathname}?i=${encodeURIComponent(i)}&t=${encodeURIComponent(t)}`;
+  if (re) {
+    const who = (re.get("n") || "").trim();
+    $("heroTitle").textContent = "חיבור הטלפון מחדש";
+    $("heroText").textContent = (who ? `הטלפון יחזור לרשומה של ${who}` : "הטלפון יחזור לרשומה שלו") + " במוסד הלימודים, עם כל ההגדרות.";
+    $("shareTitle").textContent = "קישור החיבור מחדש";
+    $("shareText").textContent = "קישור אישי לטלפון הזה בלבד. טוב לפעם אחת, במשך 24 שעות.";
+    $("openTitle").textContent = "ממשיכים לחיבור באפליקציה";
+    $("openNote").textContent = "אחרי ההתקנה לוחצים כאן. האפליקציה נפתחת ומציעה חיבור מחדש, בלי שם וכיתה.";
+  }
+  // The query for the app, and the canonical link: the same one the portal shows, whatever extra the browser added.
+  const appQuery = re
+    ? `i=${encodeURIComponent(i)}&re=1&` + ["r", "k", "s", "l", "p", "n", "c"].map((k) => `${k}=${encodeURIComponent(re.get(k) || "")}`).join("&")
+    : `i=${encodeURIComponent(i)}&t=${encodeURIComponent(t)}`;
+  const link = re
+    ? `${location.origin}${location.pathname}?i=${encodeURIComponent(i)}&re=1#` + appQuery.split("&").filter((x) => !/^(i|re)=/.test(x)).join("&")
+    : `${location.origin}${location.pathname}?${appQuery}`;
   const copyLink = () => (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).catch(() => {
     const el = $("link"); el.select(); try { document.execCommand("copy"); } catch (e) {}
   });
@@ -123,8 +141,10 @@
     $("android").hidden = false;
     // Back here from the app-open button with no app installed (Chrome's fallback).
     if (q.get("noapp")) $("join").classList.add("noapp");
-    const fallback = link + "&noapp=1";
-    $("open").href = `intent://join?i=${encodeURIComponent(i)}&t=${encodeURIComponent(t)}#Intent;scheme=kosherguard;package=${PKG};S.browser_fallback_url=${encodeURIComponent(fallback)};end`;
+    // "noapp" goes into the query part: after "#" the reconnect details must stay intact.
+    const fallback = link.replace(/(#|$)/, "&noapp=1$1");
+    // In an intent:// link the "#" belongs to Intent, so a reconnect link's details move into its query.
+    $("open").href = `intent://join?${appQuery}#Intent;scheme=kosherguard;package=${PKG};S.browser_fallback_url=${encodeURIComponent(fallback)};end`;
     // Download the current versioned APK (the fixed name may be cached by the CDN), and put the
     // link on the clipboard so the freshly installed app can pick it up with "הדבקת קישור".
     fetch("../downloads/version.json", { cache: "no-store" }).then((r) => r.json()).then((v) => {

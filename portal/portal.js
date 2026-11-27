@@ -206,16 +206,43 @@ async function reconnectDevice(d) {
       r: { d: d.id, k: token, s: String(d.slot), l: d.label, sn: d.demo === true ? "" : d.studentName || "", c: d.demo === true ? "" : d.className || "", pid: d.policyId || d.id },
     },
   });
+  // The same ticket as a link the student can get by message. Unlike the QR it carries no master
+  // secret (the phone fetches its slot's unlock key, cloud/SlotKey), and everything after "#" stays
+  // in the browser: the name and the one-time token never reach the server.
+  const link = reconnectLink(S.inst.id, d, token);
   openModal(`חיבור מחדש · ${d.studentName || d.label}`, `
-    <div class="qr-box" id="rcQr"></div>
-    <ol class="steps" style="gap:8px">
-      <li><h4>בטלפון</h4><p>פותחים את מסנן כשר ← "רישום למוסד הלימודים" ← <b>"חיבור מחדש"</b> (בלי להקליד שם וכיתה).</p></li>
-      <li><h4>סורקים</h4><p>את הברקוד הזה. הטלפון חוזר לרשומה של התלמיד, עם כל ההגדרות שלו.</p></li>
-    </ol>
-    <p class="muted small" style="margin:0">הקוד טוב לפעם אחת, במשך 24 שעות. הוא מכיל את מפתח מוסד הלימודים, אל תשלחו אותו לתלמיד.</p>`,
+    <div class="stack" style="gap:8px">
+      <b>קישור לשליחה לתלמיד</b>
+      <p class="muted small" style="margin:0">שולחים לתלמיד (בוואטסאפ, SMS או מייל). הוא פותח אותו בטלפון, מתקין את האפליקציה אם צריך, ולוחץ "חיבור מחדש". בלי להקליד שם וכיתה.</p>
+      <div style="display:flex;gap:8px"><input class="input ltr" id="rcLink" readonly value="${esc(link)}" style="flex:1;min-width:0">
+        <button class="btn sm" type="button" id="rcCopy">${ic("copy")}העתקה</button>
+        ${navigator.share ? `<button class="btn sm ghost" type="button" id="rcShare">${ic("msg")}שיתוף</button>` : ""}</div>
+    </div>
+    <details class="faq" style="margin:0"><summary>או ברקוד, כשהטלפון לידכם</summary>
+      <div class="qr-box" id="rcQr"></div>
+      <ol class="steps" style="gap:8px">
+        <li><h4>בטלפון</h4><p>פותחים את מסנן כשר ← "רישום למוסד הלימודים" ← <b>"חיבור מחדש"</b> (בלי להקליד שם וכיתה).</p></li>
+        <li><h4>סורקים</h4><p>את הברקוד הזה. הטלפון חוזר לרשומה של התלמיד, עם כל ההגדרות שלו.</p></li>
+      </ol>
+      <p class="muted small" style="margin:0">הברקוד מכיל את מפתח מוסד הלימודים: אל תשלחו אותו לתלמיד (את הקישור כן).</p></details>
+    <p class="muted small" style="margin:0">הקישור והברקוד טובים לפעם אחת, במשך 24 שעות. יצירת קישור חדש מבטלת את הקודם.</p>`,
   async () => {}, "סגירה");
+  $("rcLink").onclick = (e) => e.target.select();
+  $("rcCopy").onclick = () => (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject())
+    .then(() => toast("הקישור הועתק"), () => { $("rcLink").select(); document.execCommand("copy"); toast("הקישור הועתק"); });
+  const share = $("rcShare");
+  if (share) share.onclick = () => navigator.share({ title: "חיבור מחדש למסנן כשר", text: "הקישור לחיבור הטלפון מחדש:", url: link }).catch(() => {});
   try { $("rcQr").innerHTML = makeQr(payload).createSvgTag({ cellSize: 5, margin: 6 }); }
   catch { $("rcQr").textContent = "לא ניתן ליצור ברקוד"; }
+}
+
+/** A student's "חיבור מחדש" link: the join page, with the reconnect ticket after the "#" (see the app's SettingsQrCodec.parseJoinLink). */
+function reconnectLink(instId, d, token) {
+  const demo = d.demo === true;
+  const part = { r: d.id, k: token, s: String(d.slot), l: d.label || "", p: d.policyId || d.id,
+    n: demo ? "" : d.studentName || "", c: demo ? "" : d.className || "" };
+  return `${SITE_URL}/join/?i=${encodeURIComponent(instId)}&re=1#` +
+    Object.entries(part).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
 }
 const PERMS = {
   monitoring: ["ניטור פעילות", "צפייה באתרים ובאפליקציות שהתלמיד השתמש בהם"],
