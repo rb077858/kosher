@@ -1045,7 +1045,7 @@ function lockDemoForm(d) {
   f.dataset.demo = "1";
   f.studentName.value = d.studentName; f.className.value = d.className;
   f.studentName.disabled = f.className.disabled = true;
-  f.notes.insertAdjacentHTML("afterend", '<small class="muted">מכשיר דמו: השם והכיתה קבועים. כדי להחזיר אותו למכשיר רגיל צריך להסיר אותו ממוסד הלימודים ולרשום מחדש.</small>');
+  f.notes.insertAdjacentHTML("afterend", '<small class="muted">מכשיר דמו: השם והכיתה קבועים, והוא פועל לפי הגדרות דמו קבועות (לא לפי מה שחסום במוסד הלימודים). כדי להחזיר אותו למכשיר רגיל צריך להסיר אותו ממוסד הלימודים ולרשום מחדש.</small>');
 }
 
 function updateDrawer(d) {
